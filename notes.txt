@@ -1,0 +1,173 @@
+northstar triage - working notes
+
+Client - Northstar
+
+what we're building
+-------------------
+service that takes northstar service request (POST /cases/process + X-Event-ID header),
+gathers evidence from northstar's systems, and returns the correct FIRST action as a structured
+case result. create a work order only when it's safe and fully supported.
+contract = case-input.schema.json in, 
+case-result.schema.json out. 
+GET /health must return 200.
+
+not "faster", it's "faster to the CORRECT first action".
+a fast wrong acknowledgement costs more than a slightly slower right one. optimise for that.
+do not chase automation rate - make it useful to a coordinator on a busy shift.
+
+who owns what
+-------------
+- meera (northstar ops) - operating priorities, safety + entitlement calls
+- nikhil (northstar IT) - API access, test env, event delivery, X-Event-ID, repeats
+- aditi (celeco) - model gateway access/limits, coordination on celeco side
+- rohan (northstar) - dispatch practice. haven't spoken to him yet. bring in when we get to
+  technician matching / coordinator desk reality.
+
+source docs (in docs/client/) - build follows these, not anyone's summary of them:
+- POL-SAFETY-001 safety escalation policy
+- POL-CONTRACT-002 contract interpretation standard
+- SYS-CATALOG-001 northstar systems & API reference
+- CELECO-MODEL-001 model gateway guide
+
+constraints / must-knows
+------------------------
+safety (POL-SAFETY-001 + meera)
+- triggers: suspected fuel/gas leak, smoke, water near electrical equipment, anyone dizzy/unwell
+  in an equipment room -> immediate human escalation
+- in those cases: NO troubleshooting advice, NO automatic work order / dispatch
+- keep the customer's exact trigger words in the record, not a generic label
+- don't wait to resolve customer/site/asset before escalating
+- reporter explicitly says no smoke/smell/water/risk -> normal triage (alarm, loss of cooling,
+  noise, failed start are not automatically hazards)
+- ambiguous signal -> ask ONE concise safety question, nothing progresses until answered
+  (agreed with meera). question must be plain, answerable by whoever is next to the equipment,
+  not a form.
+- reply "not sure" or no reply -> stays with a human, never drifts back to normal triage
+- hazard word in the reply = fresh credible signal, not a resolution
+- only the duty owner (human) releases an escalated case back to triage, never the automation
+- my two design decisions, meera confirmed she wants them kept even at the cost of automation:
+    1. unclear whether ambiguous or credible -> go to human
+    2. model can't clear a safety signal on its own. hazard-type wording present, or model
+       output missing/malformed -> cautious path
+
+contract / entitlement (POL-CONTRACT-002 + meera)
+- coverage comes from the agreement records, not from what the customer says. payment
+  receipts, "we're premium", account manager messages = context, not evidence
+- decision order: resolve customer + asset first -> find agreement in force by effective dates
+  and status -> apply latest dated amendment -> check service mode
+- later amendment overrides conflicting base terms, only for what it changes, only from its
+  effective date. doesn't rewrite unrelated clauses
+- this is where they get hurt most - coordinators quoted response window off base contract
+  when an amendment had already changed it
+- remote-only service mode does NOT authorise onsite dispatch
+- expired / suspended / missing agreement, or conflicts with request -> account review
+- payment receipt doesn't reactivate a suspended account until commercial ops allocates it
+- newly installed asset isn't covered just because the customer is on a premium plan
+- customer/asset/amendment can't be established confidently -> account review before dispatch
+- keep as evidence: customer/site/asset used, contract ref + amendment that changed the term,
+  reason for human review
+- customer reply: coverage clear -> state next action + response window, no internal notes.
+  under review -> acknowledge the issue, don't promise attendance, say we're checking the
+  account record
+
+identity / missing info (meera)
+- missing equipment details go back to customer or account owner, never guessed
+  ("backup unit near pharmacy" story - two similar assets, don't pick one)
+
+duplicates (meera + nikhil) - two different things:
+- same X-Event-ID delivered again (at-least-once delivery) -> transport repeat, return the
+  original result, never a second work order
+- different request about the same job (email + portal 4 mins apart) -> duplicate_detected,
+  acknowledge as duplicate, preserve original references, don't open a second WO
+
+work orders (meera + nikhil + API ref)
+- straight-through only when customer, site, asset, entitlement AND technician match are all
+  supported by evidence and nothing consequential is uncertain. everything else -> coordinator
+  with reason + evidence attached
+- safety cases, uncertain identity/entitlement, out-of-coverage dispatch -> always human
+- WO create needs externalEventId = X-Event-ID. repeating it returns the original WO
+  ({workOrder, duplicate}). retries must reuse the same id - a retry with a new id is how they
+  got a second WO before
+- 504 after a write = uncertain outcome. reconcile (look up by event/request ref) before retry
+- "duplicate: true" is not an error, don't retry it
+- API validates structure only, NOT business judgement. safe/covered/appropriate is on us
+
+lookups (nikhil + API ref)
+- separate APIs: customers (incl sites + assets), agreements, technicians, work-order-history,
+  work-orders, requests, request-workflow. no single "everything about this request" call
+- records incomplete - older assets may have no nickname, request may have no asset id
+- technician availability is a hint for shortlisting, not a booking
+- amendments stored separately - read base + amendments together
+- reads can time out -> bounded retries w/ short backoff ok. never retry forever, never
+  substitute a guess. lookup we depend on fails -> visible failure state for a coordinator
+- northstar key never goes in model prompts, logs or source control
+
+model gateway (aditi + guide)
+- openai-compatible chat endpoint, model alias celeco-assessment-chat-v1
+- budget for the WHOLE assessment incl. submitted runtime: 300 requests, 1M input tokens,
+  150k output tokens. max 30 msgs / 60k chars per request, 2048 output tokens
+- text only, no tool calling, optional json-object response format, temp 0-1
+- evaluator checks structured behaviour + observed side effects, not exact wording
+- test malformed/incomplete output, timeouts, non-deterministic wording
+
+things noticed in the data
+--------------------------
+- search "Aster" returns 2 different customers (Aster Warehousing CUS-012, Aster Clinical
+  Services CUS-019), both in whitefield. customer record has no email field -> can't identify
+  by name alone. sender domain + site + asset have to agree, otherwise uncertain identity
+- asset carries contractRef + requiredCertifications -> keys for the next lookups
+- agreement CON-012-A2: supersedes CON-012, effective 2026-08-12 to 2027-07-31, onsite,
+  4h response. amendment points back to base, base doesn't point forward. "A2" implies an A1
+  probably exists -> look at the whole agreement family, pick what's in force on receivedAt
+- runner cases != visible-cases.json (different customers/assets). hidden cases will differ
+  again -> nothing hardcoded to examples
+
+approach
+--------
+split the work: model READS, code DECIDES.
+- model: one call per case, turns messy text into structured facts (asset/site mentions,
+  safety signal affirmed/denied/ambiguous/absent + exact quote, intent, referenced requests)
+- code: applies the policy rules to those facts + looked-up records. rules are written from
+  the policies, not from test cases, so new phrasings still work (model handles language)
+  and decisions stay explainable/testable
+- one model call per case also fits the 300 request budget
+why? token limit less for testing, design choices vary from budget to budget
+endpoint: https://hiring.celecolabs.com/api/assessment?route=model
+Allowance: 300 requests, 1000000 input tokens and 150000 output tokens.
+Refer:northstar-case-triage\resources\celeco-model-gateway-guide.pdf
+
+pipeline
+--------
+1. intake - validate input, X-Event-ID already processed? return stored result
+2. read - single model call -> facts json. validate. broken/timeout -> cautious path
+3. evidence - customer -> site -> asset -> agreement family in force on receivedAt ->
+   qualified + available technicians -> open work orders. bounded retries, failure -> failed
+4. decide - in order: safety -> identity -> duplicate -> coverage -> technician -> status + reasons
+5. act - create WO only for dispatch_ready, keyed on X-Event-ID. handle duplicate flag,
+   reconcile after 504
+6. respond - build case result. customer draft by status (templates, no advice on safety cases),
+   audit with source refs (policy ids, record ids), model trace ids, warnings
+
+open / to verify in sandbox
+---------------------------
+- covered_action vs dispatch_ready - my reading: covered_action = covered planned work
+  (scheduled service, coverage confirmation), dispatch_ready = covered breakdown + tech
+  matched + WO created. confirm against data / ask rohan or meera
+- how a business duplicate is found when the earlier request didn't create a WO - probably
+  route=requests (saved workflow state). check
+- should we write to request-workflow (coordinator workspace) for non-dispatch cases? likely
+  part of "useful to a coordinator" + possibly an observed side effect. check
+- what the base CON-012 says vs A2, does an A1 exist
+- submission.json manifest schema - haven't found it yet
+
+deliverables
+------------
+README.md, Dockerfile, SOLUTION.md, AI_WORKLOG.md, agent-sessions/, QUALITY.md, submission.json
+QUALITY.md needs: visible runner results + own tests for uncertainty, retry, safety,
+malformed model output. method, results, known limits.
+known limit already: "no reply" to a safety question can't be seen by a request-driven service.
+
+housekeeping
+------------
+- keys only in .env (gitignored). redact cel_northstar_ / cel_model_ anywhere in logs before commit
+- keep every agent session, index in AI_WORKLOG.md
