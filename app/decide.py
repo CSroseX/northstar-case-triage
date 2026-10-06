@@ -85,7 +85,7 @@ HAZARD_PATTERNS: tuple[tuple[str, str], ...] = (
 # POL-SAFETY-001 — smoke, a fuel or gas leak, water near electrical equipment, and anyone
 # feeling unwell — without reading like a checklist.
 SAFETY_QUESTION = (
-    "Is there any smoke, a burning or fuel smell, or water near the equipment, "
+    "Is there any smoke, a burning, fuel or gas smell, or water near the equipment, "
     "and is anyone feeling unwell?"
 )
 

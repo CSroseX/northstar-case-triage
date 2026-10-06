@@ -969,7 +969,7 @@ def test_the_safety_question_is_one_plain_sentence() -> None:
     assert len(SAFETY_QUESTION) < 140
     # Still covers POL-SAFETY-001's four triggers.
     lowered = SAFETY_QUESTION.lower()
-    for trigger in ("smoke", "smell", "water", "unwell"):
+    for trigger in ("smoke", "burning", "fuel", "gas", "water", "unwell"):
         assert trigger in lowered
 
 
