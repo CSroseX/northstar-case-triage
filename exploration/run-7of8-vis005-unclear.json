@@ -1,0 +1,1338 @@
+{
+  "_note": "Live run, 2026-10-06, scoring 7/8 on the visible runner. Kept as the evidence for the VIS-005 duplicate story: the model returned sameFaultAsExisting='unclear' for the follow-up, so the case came back clarification_required with reason possible_duplicate_unclear rather than duplicate_detected. The fix was to let the records settle it - an earlier request for the same equipment inside the contract's response window is one incident - rather than relying on the model's judgement alone. Superseded by the current 8/8 run; the drafts here predate the three-line reply format.",
+  "modelCalls": 12,
+  "runnerScore": "7/8",
+  "results": [
+    {
+      "caseLabel": "VIS-001",
+      "requestId": "REQ-V001",
+      "eventId": "visible-vis-001",
+      "expectedStatus": "covered_action",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-V001",
+        "status": "covered_action",
+        "entities": {
+          "customerId": "CUS-012",
+          "siteId": "SITE-008",
+          "assetId": "AST-101"
+        },
+        "classification": {
+          "category": "planned_service",
+          "urgency": "routine",
+          "safetyRisk": false,
+          "confidence": 0.9
+        },
+        "entitlement": {
+          "status": "covered",
+          "sla": "4h response",
+          "evidence": [
+            {
+              "type": "agreement",
+              "id": "CON-012-A2",
+              "status": "active",
+              "serviceMode": "onsite",
+              "responseHours": 4,
+              "effectiveFrom": "2026-08-12",
+              "effectiveTo": "2027-07-31",
+              "inForceAtReceivedAt": true
+            },
+            {
+              "type": "supersedes",
+              "id": "CON-012",
+              "retrievable": false
+            },
+            {
+              "type": "asset_coverage",
+              "id": "AST-101",
+              "coverage": "premium"
+            }
+          ]
+        },
+        "nextActions": [
+          {
+            "type": "schedule_visit",
+            "reason": "Schedule the covered visit; the work order is raised when it is booked"
+          },
+          {
+            "type": "coverage_confirmed",
+            "reason": "Agreement CON-012-A2 is active and in force at the request time"
+          },
+          {
+            "type": "planned_not_dispatched",
+            "reason": "Planned service is scheduled, not dispatched at intake"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. We have your request for quarterly service requested for Main DG; no fault reported on Main DG (AST-101) at Whitefield warehouse. This is covered under agreement CON-012-A2, and we are scheduling the visit now. We will come back to you shortly to agree a date and time.",
+        "missingInformation": [],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-V001",
+              "channel": "portal"
+            },
+            {
+              "type": "customer",
+              "id": "CUS-012"
+            },
+            {
+              "type": "site",
+              "id": "SITE-008"
+            },
+            {
+              "type": "asset",
+              "id": "AST-101"
+            },
+            {
+              "type": "agreement",
+              "id": "CON-012-A2"
+            },
+            {
+              "type": "route",
+              "id": "technicians"
+            },
+            {
+              "type": "route",
+              "id": "work-orders"
+            },
+            {
+              "type": "route",
+              "id": "requests"
+            },
+            {
+              "type": "route",
+              "id": "work-order-history"
+            },
+            {
+              "type": "policy",
+              "id": "POL-CONTRACT-002"
+            },
+            {
+              "type": "policy",
+              "id": "OPS-DISPATCH-004"
+            }
+          ],
+          "modelTraceIds": [
+            "7c3d64e3-16b3-497c-99ab-607a0fc969e2"
+          ],
+          "warnings": [
+            "No work order at intake; the visit is scheduled first"
+          ]
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": []
+      }
+    },
+    {
+      "caseLabel": "VIS-002",
+      "requestId": "REQ-V002",
+      "eventId": "visible-vis-002",
+      "expectedStatus": "clarification_required",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-V002",
+        "status": "clarification_required",
+        "entities": {
+          "customerId": null,
+          "siteId": null,
+          "assetId": null
+        },
+        "classification": {
+          "category": "breakdown",
+          "urgency": "high",
+          "safetyRisk": false,
+          "confidence": 0.5
+        },
+        "entitlement": {
+          "status": "not_established",
+          "sla": "not_applicable",
+          "evidence": []
+        },
+        "nextActions": [
+          {
+            "type": "request_information",
+            "reason": "Ask the customer for the information needed to decide the next step"
+          },
+          {
+            "type": "asset_not_identified",
+            "reason": "The request does not identify a specific asset"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. We have your report of freezer plant at Hoskote cold store not pulling down below -12\u00b0C. Before we can decide the next step, could you confirm: asset identifier, or the equipment name and location as labelled on site? As soon as we have that we will take this forward.",
+        "missingInformation": [
+          "Asset identifier, or the equipment name and location as labelled on site"
+        ],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-V002",
+              "channel": "email"
+            },
+            {
+              "type": "policy",
+              "id": "OPS-INTAKE-003"
+            }
+          ],
+          "modelTraceIds": [
+            "5cd07160-5805-4b22-8016-4ef28f542d61"
+          ],
+          "warnings": []
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": []
+      }
+    },
+    {
+      "caseLabel": "VIS-003",
+      "requestId": "REQ-V003",
+      "eventId": "visible-vis-003",
+      "expectedStatus": "human_escalation_required",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-V003",
+        "status": "human_escalation_required",
+        "entities": {
+          "customerId": null,
+          "siteId": null,
+          "assetId": null
+        },
+        "classification": {
+          "category": "safety",
+          "urgency": "immediate",
+          "safetyRisk": true,
+          "confidence": 0.9
+        },
+        "entitlement": {
+          "status": "not_established",
+          "sla": "not_applicable",
+          "evidence": []
+        },
+        "nextActions": [
+          {
+            "type": "escalate_to_duty_owner",
+            "reason": "Route to the duty owner for immediate human review; no dispatch and no advice"
+          },
+          {
+            "type": "safety_signal_affirmed",
+            "reason": "The report describes a possible immediate hazard"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. We have treated your report about the equipment you reported as a possible safety issue. You reported: \"Security reports a strong diesel smell and unusual vibration near the backup generator\" Please keep people away from the equipment and do not attempt to operate or investigate it. This has been escalated to our duty team, who will contact you directly.",
+        "missingInformation": [],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-V003",
+              "channel": "email"
+            },
+            {
+              "type": "policy",
+              "id": "POL-SAFETY-001"
+            }
+          ],
+          "modelTraceIds": [
+            "565cc3bd-0cfd-4eae-a5a3-254ed93c3da1"
+          ],
+          "warnings": [
+            "Safety escalation: no troubleshooting advice and no automatic dispatch",
+            "Reported wording: \"Security reports a strong diesel smell and unusual vibration near the backup generator\""
+          ]
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": []
+      }
+    },
+    {
+      "caseLabel": "VIS-004",
+      "requestId": "REQ-V004",
+      "eventId": "visible-vis-004",
+      "expectedStatus": "account_review_required",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-V004",
+        "status": "account_review_required",
+        "entities": {
+          "customerId": null,
+          "siteId": null,
+          "assetId": null
+        },
+        "classification": {
+          "category": "coverage_enquiry",
+          "urgency": "normal",
+          "safetyRisk": false,
+          "confidence": 0.9
+        },
+        "entitlement": {
+          "status": "review_required",
+          "sla": "not_applicable",
+          "evidence": []
+        },
+        "nextActions": [
+          {
+            "type": "route_to_account_review",
+            "reason": "Hold for account review; coverage is not confirmed from the agreement record"
+          },
+          {
+            "type": "asset_not_on_record",
+            "reason": "Asset CMP-77 does not appear in the customer records"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. We have your report of compressor CMP-77 on line 2 is not listed in the covered asset list on the equipment you reported. Before we can confirm what happens next, we are checking the service agreement record for this equipment. We will come back to you as soon as that check is complete.",
+        "missingInformation": [
+          "Whether CMP-77 is a covered asset on the account"
+        ],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-V004",
+              "channel": "portal"
+            },
+            {
+              "type": "route",
+              "id": "customers"
+            },
+            {
+              "type": "policy",
+              "id": "POL-CONTRACT-002"
+            }
+          ],
+          "modelTraceIds": [
+            "3b33f15f-cd58-4752-92af-fdb8225e6e52"
+          ],
+          "warnings": []
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": []
+      }
+    },
+    {
+      "caseLabel": "VIS-005",
+      "requestId": "REQ-V005-B",
+      "eventId": "visible-vis-005",
+      "expectedStatus": "duplicate_detected",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-V005-B",
+        "status": "clarification_required",
+        "entities": {
+          "customerId": "CUS-012",
+          "siteId": "SITE-008",
+          "assetId": "AST-101"
+        },
+        "classification": {
+          "category": "follow_up",
+          "urgency": "normal",
+          "safetyRisk": false,
+          "confidence": 0.5
+        },
+        "entitlement": {
+          "status": "not_assessed",
+          "sla": "not_applicable",
+          "evidence": [
+            {
+              "type": "agreement",
+              "id": "CON-012-A2",
+              "status": "active",
+              "serviceMode": "onsite",
+              "responseHours": 4,
+              "effectiveFrom": "2026-08-12",
+              "effectiveTo": "2027-07-31",
+              "inForceAtReceivedAt": true
+            },
+            {
+              "type": "supersedes",
+              "id": "CON-012",
+              "retrievable": false
+            },
+            {
+              "type": "asset_coverage",
+              "id": "AST-101",
+              "coverage": "premium"
+            }
+          ]
+        },
+        "nextActions": [
+          {
+            "type": "request_information",
+            "reason": "Ask the customer for the information needed to decide the next step"
+          },
+          {
+            "type": "possible_duplicate_unclear",
+            "reason": "This may be the same fault as an open job on this asset; a coordinator must confirm before a second work order is considered"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. We have your report of follow-up on the Main DG service request raised via the portal at Whitefield warehouse. Before we can decide the next step, could you confirm: whether this is the same fault as the job already open? As soon as we have that we will take this forward.",
+        "missingInformation": [
+          "Whether this is the same fault as the job already open"
+        ],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-V005-B",
+              "channel": "email"
+            },
+            {
+              "type": "customer",
+              "id": "CUS-012"
+            },
+            {
+              "type": "site",
+              "id": "SITE-008"
+            },
+            {
+              "type": "asset",
+              "id": "AST-101"
+            },
+            {
+              "type": "agreement",
+              "id": "CON-012-A2"
+            },
+            {
+              "type": "route",
+              "id": "technicians"
+            },
+            {
+              "type": "route",
+              "id": "work-orders"
+            },
+            {
+              "type": "route",
+              "id": "requests"
+            },
+            {
+              "type": "route",
+              "id": "work-order-history"
+            },
+            {
+              "type": "policy",
+              "id": "OPS-INTAKE-003"
+            },
+            {
+              "type": "work_order",
+              "id": "WO-9294"
+            }
+          ],
+          "modelTraceIds": [
+            "7e949a73-768e-416c-9514-a9d342718c5d"
+          ],
+          "warnings": [
+            "Possible duplicate held for operator review"
+          ]
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": []
+      }
+    },
+    {
+      "caseLabel": "VIS-006",
+      "requestId": "REQ-V006",
+      "eventId": "visible-vis-006",
+      "expectedStatus": "dispatch_ready",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-V006",
+        "status": "dispatch_ready",
+        "entities": {
+          "customerId": "CUS-027",
+          "siteId": "SITE-021",
+          "assetId": "AST-302"
+        },
+        "classification": {
+          "category": "breakdown",
+          "urgency": "high",
+          "safetyRisk": false,
+          "confidence": 0.9
+        },
+        "entitlement": {
+          "status": "covered",
+          "sla": "4h response",
+          "evidence": [
+            {
+              "type": "agreement",
+              "id": "CON-027-A1",
+              "status": "active",
+              "serviceMode": "onsite",
+              "responseHours": 4,
+              "effectiveFrom": "2026-04-15",
+              "effectiveTo": "2027-03-31",
+              "inForceAtReceivedAt": true
+            },
+            {
+              "type": "asset_coverage",
+              "id": "AST-302",
+              "coverage": "premium"
+            }
+          ]
+        },
+        "nextActions": [
+          {
+            "type": "dispatch_technician",
+            "reason": "Attend the fault under the agreement's response commitment"
+          },
+          {
+            "type": "work_order_created",
+            "reason": "Work order 8180a1c5-a030-4ddc-8d7a-30190d5e464a was created for this request"
+          },
+          {
+            "type": "coverage_confirmed",
+            "reason": "Agreement CON-027-A1 is active and in force at the request time"
+          },
+          {
+            "type": "technician_matched",
+            "reason": "TECH-02 holds the required skill and certifications and is available in Bengaluru"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. We have your report of freezer plant 2 has stopped cooling on Freezer plant 2 (AST-302) at Hoskote cold store. An engineer has been assigned to attend. Under your service agreement we will be with you within 4 hours. We will confirm the visit details shortly.",
+        "missingInformation": [],
+        "workOrder": {
+          "id": "8180a1c5-a030-4ddc-8d7a-30190d5e464a",
+          "requestId": "REQ-V006",
+          "customerId": null,
+          "siteId": null,
+          "assetId": "AST-302",
+          "technicianId": "TECH-02",
+          "status": "created",
+          "summary": null,
+          "createdAt": "2026-10-06T13:13:38.745+00:00",
+          "source": null
+        },
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-V006",
+              "channel": "portal"
+            },
+            {
+              "type": "customer",
+              "id": "CUS-027"
+            },
+            {
+              "type": "site",
+              "id": "SITE-021"
+            },
+            {
+              "type": "asset",
+              "id": "AST-302"
+            },
+            {
+              "type": "agreement",
+              "id": "CON-027-A1"
+            },
+            {
+              "type": "route",
+              "id": "technicians"
+            },
+            {
+              "type": "route",
+              "id": "work-orders"
+            },
+            {
+              "type": "route",
+              "id": "requests"
+            },
+            {
+              "type": "route",
+              "id": "work-order-history"
+            },
+            {
+              "type": "policy",
+              "id": "POL-CONTRACT-002"
+            },
+            {
+              "type": "policy",
+              "id": "OPS-DISPATCH-004"
+            }
+          ],
+          "modelTraceIds": [
+            "d9e5ccde-7c10-4941-82df-11916143c39d"
+          ],
+          "warnings": [
+            "Technician is a recommendation; availability must be re-checked immediately before the work order is created",
+            "Response commitment: 4 hours",
+            "TECH-05 is already assigned to WO-9290 on this equipment (assigned): \"Freezer plant 2 compressor cycling\". A coordinator may prefer to combine the visits."
+          ]
+        },
+        "alternativeTechnicians": [
+          {
+            "technicianId": "TECH-05",
+            "name": "Naveen Gowda",
+            "city": "Bengaluru",
+            "skills": [
+              "compressor",
+              "hvac"
+            ],
+            "certifications": [
+              "refrigerant",
+              "compressed-air"
+            ],
+            "available": true,
+            "sameCityAsSite": true,
+            "currentAssignment": null
+          },
+          {
+            "technicianId": "TECH-10",
+            "name": "Manoj Patil",
+            "city": "Bengaluru",
+            "skills": [
+              "hvac"
+            ],
+            "certifications": [
+              "refrigerant"
+            ],
+            "available": true,
+            "sameCityAsSite": true,
+            "currentAssignment": null
+          }
+        ],
+        "relatedHistory": []
+      }
+    },
+    {
+      "caseLabel": "VIS-007",
+      "requestId": "REQ-V007",
+      "eventId": "visible-vis-007",
+      "expectedStatus": "resource_escalation_required",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-V007",
+        "status": "resource_escalation_required",
+        "entities": {
+          "customerId": "CUS-019",
+          "siteId": "SITE-014",
+          "assetId": "AST-205"
+        },
+        "classification": {
+          "category": "breakdown",
+          "urgency": "high",
+          "safetyRisk": false,
+          "confidence": 0.9
+        },
+        "entitlement": {
+          "status": "covered",
+          "sla": "8h response",
+          "evidence": [
+            {
+              "type": "agreement",
+              "id": "CON-019",
+              "status": "active",
+              "serviceMode": "onsite",
+              "responseHours": 8,
+              "effectiveFrom": "2026-01-01",
+              "effectiveTo": "2026-12-31",
+              "inForceAtReceivedAt": true
+            },
+            {
+              "type": "asset_coverage",
+              "id": "AST-205",
+              "coverage": "standard"
+            }
+          ]
+        },
+        "nextActions": [
+          {
+            "type": "escalate_to_dispatch_lead",
+            "reason": "Resource decision for the dispatch lead; no placeholder work order"
+          },
+          {
+            "type": "coverage_confirmed",
+            "reason": "Agreement CON-019 is active and in force at the request time"
+          },
+          {
+            "type": "no_available_qualified_technician",
+            "reason": "1 technician(s) hold the required certifications but none are available in the site's city"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. We have your report of generator at Whitefield clinic needs an electrical-certified technician today on Clinic DG (AST-205) at Whitefield clinic. This needs an engineer with specific qualifications for your equipment, and our dispatch team is arranging that now. We will contact you with the arrangements as soon as they are confirmed.",
+        "missingInformation": [
+          "An available qualified technician for this asset"
+        ],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-V007",
+              "channel": "portal"
+            },
+            {
+              "type": "customer",
+              "id": "CUS-019"
+            },
+            {
+              "type": "site",
+              "id": "SITE-014"
+            },
+            {
+              "type": "asset",
+              "id": "AST-205"
+            },
+            {
+              "type": "agreement",
+              "id": "CON-019"
+            },
+            {
+              "type": "route",
+              "id": "technicians"
+            },
+            {
+              "type": "route",
+              "id": "work-orders"
+            },
+            {
+              "type": "route",
+              "id": "requests"
+            },
+            {
+              "type": "route",
+              "id": "work-order-history"
+            },
+            {
+              "type": "policy",
+              "id": "POL-CONTRACT-002"
+            },
+            {
+              "type": "policy",
+              "id": "OPS-DISPATCH-004"
+            }
+          ],
+          "modelTraceIds": [
+            "35ac739e-6a20-4f19-9048-3f06f0ba9857"
+          ],
+          "warnings": [
+            "No placeholder work order created; the dispatch lead decides how to resource this"
+          ]
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": []
+      }
+    },
+    {
+      "caseLabel": "VIS-008",
+      "requestId": "REQ-V008",
+      "eventId": "visible-vis-008",
+      "expectedStatus": "covered_action",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-V008",
+        "status": "covered_action",
+        "entities": {
+          "customerId": "CUS-012",
+          "siteId": "SITE-008",
+          "assetId": "AST-101"
+        },
+        "classification": {
+          "category": "coverage_enquiry",
+          "urgency": "normal",
+          "safetyRisk": false,
+          "confidence": 0.9
+        },
+        "entitlement": {
+          "status": "covered",
+          "sla": "4h response",
+          "evidence": [
+            {
+              "type": "agreement",
+              "id": "CON-012-A2",
+              "status": "active",
+              "serviceMode": "onsite",
+              "responseHours": 4,
+              "effectiveFrom": "2026-08-12",
+              "effectiveTo": "2027-07-31",
+              "inForceAtReceivedAt": true
+            },
+            {
+              "type": "supersedes",
+              "id": "CON-012",
+              "retrievable": false
+            },
+            {
+              "type": "asset_coverage",
+              "id": "AST-101",
+              "coverage": "premium"
+            }
+          ]
+        },
+        "nextActions": [
+          {
+            "type": "schedule_visit",
+            "reason": "Schedule the covered visit; the work order is raised when it is booked"
+          },
+          {
+            "type": "coverage_confirmed",
+            "reason": "Agreement CON-012-A2 is active and in force at the request time"
+          },
+          {
+            "type": "planned_not_dispatched",
+            "reason": "Coverage confirmed from the agreement record"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. We can confirm that Main DG (AST-101) at Whitefield warehouse is covered under agreement CON-012-A2. It carries a response commitment of 4 hours. Please let us know if you would like us to arrange a visit.",
+        "missingInformation": [],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-V008",
+              "channel": "email"
+            },
+            {
+              "type": "customer",
+              "id": "CUS-012"
+            },
+            {
+              "type": "site",
+              "id": "SITE-008"
+            },
+            {
+              "type": "asset",
+              "id": "AST-101"
+            },
+            {
+              "type": "agreement",
+              "id": "CON-012-A2"
+            },
+            {
+              "type": "route",
+              "id": "technicians"
+            },
+            {
+              "type": "route",
+              "id": "work-orders"
+            },
+            {
+              "type": "route",
+              "id": "requests"
+            },
+            {
+              "type": "route",
+              "id": "work-order-history"
+            },
+            {
+              "type": "policy",
+              "id": "POL-CONTRACT-002"
+            },
+            {
+              "type": "policy",
+              "id": "OPS-DISPATCH-004"
+            }
+          ],
+          "modelTraceIds": [
+            "2f2bfcbd-3999-410e-83fd-a6397134cf2e"
+          ],
+          "warnings": [
+            "No work order at intake; the visit is scheduled first"
+          ]
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": []
+      }
+    },
+    {
+      "caseLabel": "REQ-8275",
+      "requestId": "REQ-8275",
+      "eventId": "queue-req-8275",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-8275",
+        "status": "human_escalation_required",
+        "entities": {
+          "customerId": "CUS-096",
+          "siteId": "SITE-082",
+          "assetId": "AST-1001"
+        },
+        "classification": {
+          "category": "safety",
+          "urgency": "immediate",
+          "safetyRisk": true,
+          "confidence": 0.9
+        },
+        "entitlement": {
+          "status": "not_assessed",
+          "sla": "not_applicable",
+          "evidence": [
+            {
+              "type": "agreement",
+              "id": "CON-096",
+              "status": "active",
+              "serviceMode": "onsite",
+              "responseHours": 8,
+              "effectiveFrom": "2026-03-01",
+              "effectiveTo": "2027-02-28",
+              "inForceAtReceivedAt": true
+            },
+            {
+              "type": "asset_coverage",
+              "id": "AST-1001",
+              "coverage": "standard"
+            }
+          ]
+        },
+        "nextActions": [
+          {
+            "type": "escalate_to_duty_owner",
+            "reason": "Route to the duty owner for immediate human review; no dispatch and no advice"
+          },
+          {
+            "type": "coverage_confirmed",
+            "reason": "Agreement CON-096 is active and in force at the request time"
+          },
+          {
+            "type": "refers_to_previous_work",
+            "reason": "The request asks about earlier work on this equipment; a coordinator reviews the previous jobs before anything new is raised"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. You asked us to look at the earlier work on Sortation hall AHU 2 (AST-1001) at Nelamangala fulfilment centre in connection with aHU 2 in the sortation hall has weak airflow again; cooling remains within range. A coordinator is reviewing the previous visits for this equipment before we arrange anything further, so that we build on what was already done rather than duplicating it. We will come back to you with the next step shortly.",
+        "missingInformation": [
+          "Coordinator review of the previous work on this equipment"
+        ],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-8275",
+              "channel": "portal"
+            },
+            {
+              "type": "customer",
+              "id": "CUS-096"
+            },
+            {
+              "type": "site",
+              "id": "SITE-082"
+            },
+            {
+              "type": "asset",
+              "id": "AST-1001"
+            },
+            {
+              "type": "agreement",
+              "id": "CON-096"
+            },
+            {
+              "type": "route",
+              "id": "technicians"
+            },
+            {
+              "type": "route",
+              "id": "work-orders"
+            },
+            {
+              "type": "route",
+              "id": "requests"
+            },
+            {
+              "type": "route",
+              "id": "work-order-history"
+            },
+            {
+              "type": "policy",
+              "id": "POL-CONTRACT-002"
+            },
+            {
+              "type": "policy",
+              "id": "OPS-INTAKE-003"
+            },
+            {
+              "type": "work_order",
+              "id": "WO-8759"
+            }
+          ],
+          "modelTraceIds": [
+            "5d40c4b0-7ccc-4516-aeaf-1e444633ed50"
+          ],
+          "warnings": [
+            "Not dispatched: the request refers to earlier work that must be reviewed first"
+          ]
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": [
+          {
+            "id": "WO-8759",
+            "requestId": "REQ-7608",
+            "summary": "Sortation hall AHU airflow below set point",
+            "status": "completed",
+            "openedAt": "2026-06-28T09:10:00.000Z",
+            "closedAt": "2026-06-28T15:35:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "caseLabel": "REQ-8283",
+      "requestId": "REQ-8283",
+      "eventId": "queue-req-8283",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-8283",
+        "status": "human_escalation_required",
+        "entities": {
+          "customerId": "CUS-117",
+          "siteId": "SITE-105",
+          "assetId": "AST-1201"
+        },
+        "classification": {
+          "category": "safety",
+          "urgency": "immediate",
+          "safetyRisk": true,
+          "confidence": 0.9
+        },
+        "entitlement": {
+          "status": "not_assessed",
+          "sla": "not_applicable",
+          "evidence": [
+            {
+              "type": "agreement",
+              "id": "CON-117",
+              "status": "active",
+              "serviceMode": "onsite",
+              "responseHours": 12,
+              "effectiveFrom": "2026-01-15",
+              "effectiveTo": "2027-01-14",
+              "inForceAtReceivedAt": true
+            },
+            {
+              "type": "asset_coverage",
+              "id": "AST-1201",
+              "coverage": "standard"
+            }
+          ]
+        },
+        "nextActions": [
+          {
+            "type": "escalate_to_duty_owner",
+            "reason": "Route to the duty owner for immediate human review; no dispatch and no advice"
+          },
+          {
+            "type": "coverage_confirmed",
+            "reason": "Agreement CON-117 is active and in force at the request time"
+          },
+          {
+            "type": "refers_to_previous_work",
+            "reason": "The request asks about earlier work on this equipment; a coordinator reviews the previous jobs before anything new is raised"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. You asked us to look at the earlier work on Press line compressor (AST-1201) at Rajajinagar packaging plant in connection with pressure oscillating again during long runs. A coordinator is reviewing the previous visits for this equipment before we arrange anything further, so that we build on what was already done rather than duplicating it. We will come back to you with the next step shortly.",
+        "missingInformation": [
+          "Coordinator review of the previous work on this equipment"
+        ],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-8283",
+              "channel": "portal"
+            },
+            {
+              "type": "customer",
+              "id": "CUS-117"
+            },
+            {
+              "type": "site",
+              "id": "SITE-105"
+            },
+            {
+              "type": "asset",
+              "id": "AST-1201"
+            },
+            {
+              "type": "agreement",
+              "id": "CON-117"
+            },
+            {
+              "type": "route",
+              "id": "technicians"
+            },
+            {
+              "type": "route",
+              "id": "work-orders"
+            },
+            {
+              "type": "route",
+              "id": "requests"
+            },
+            {
+              "type": "route",
+              "id": "work-order-history"
+            },
+            {
+              "type": "policy",
+              "id": "POL-CONTRACT-002"
+            },
+            {
+              "type": "policy",
+              "id": "OPS-INTAKE-003"
+            },
+            {
+              "type": "work_order",
+              "id": "WO-8876"
+            }
+          ],
+          "modelTraceIds": [
+            "c3806f25-368b-4d16-b3e7-11534c8e1aba"
+          ],
+          "warnings": [
+            "Not dispatched: the request refers to earlier work that must be reviewed first"
+          ]
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": [
+          {
+            "id": "WO-8876",
+            "requestId": "REQ-7763",
+            "summary": "Press line compressor pressure oscillation",
+            "status": "completed",
+            "openedAt": "2026-07-22T12:05:00.000Z",
+            "closedAt": "2026-07-22T18:40:00.000Z"
+          }
+        ]
+      }
+    },
+    {
+      "caseLabel": "REQ-SAFETY-A",
+      "requestId": "REQ-SAFETY-A",
+      "eventId": "safety-reply-unsure",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-SAFETY-A",
+        "status": "human_escalation_required",
+        "entities": {
+          "customerId": "CUS-027",
+          "siteId": "SITE-021",
+          "assetId": "AST-302"
+        },
+        "classification": {
+          "category": "safety",
+          "urgency": "immediate",
+          "safetyRisk": true,
+          "confidence": 0.4
+        },
+        "entitlement": {
+          "status": "not_assessed",
+          "sla": "not_applicable",
+          "evidence": [
+            {
+              "type": "agreement",
+              "id": "CON-027-A1",
+              "status": "active",
+              "serviceMode": "onsite",
+              "responseHours": 4,
+              "effectiveFrom": "2026-04-15",
+              "effectiveTo": "2027-03-31",
+              "inForceAtReceivedAt": true
+            },
+            {
+              "type": "asset_coverage",
+              "id": "AST-302",
+              "coverage": "premium"
+            }
+          ]
+        },
+        "nextActions": [
+          {
+            "type": "escalate_to_duty_owner",
+            "reason": "Route to the duty owner for immediate human review; no dispatch and no advice"
+          },
+          {
+            "type": "safety_answer_unresolved",
+            "reason": "The reply does not resolve whether there is a hazard; the case stays with the duty owner rather than returning to normal triage"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. We have treated your report about Freezer plant 2 (AST-302) at Hoskote cold store as a possible safety issue. You reported: \"Not sure, nobody has been down to the plant room to look yet.\" Please keep people away from the equipment and do not attempt to operate or investigate it. This has been escalated to our duty team, who will contact you directly.",
+        "missingInformation": [],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-SAFETY-A",
+              "channel": "email"
+            },
+            {
+              "type": "customer",
+              "id": "CUS-027"
+            },
+            {
+              "type": "site",
+              "id": "SITE-021"
+            },
+            {
+              "type": "asset",
+              "id": "AST-302"
+            },
+            {
+              "type": "agreement",
+              "id": "CON-027-A1"
+            },
+            {
+              "type": "route",
+              "id": "technicians"
+            },
+            {
+              "type": "route",
+              "id": "work-orders"
+            },
+            {
+              "type": "route",
+              "id": "requests"
+            },
+            {
+              "type": "route",
+              "id": "work-order-history"
+            },
+            {
+              "type": "policy",
+              "id": "POL-SAFETY-001"
+            }
+          ],
+          "modelTraceIds": [
+            "ddb7045a-afb7-4635-b79c-87629dd8adc2"
+          ],
+          "warnings": [
+            "Safety question answered without resolving the hazard; only the duty owner may release this case",
+            "Reported wording: \"Not sure, nobody has been down to the plant room to look yet.\""
+          ]
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": []
+      }
+    },
+    {
+      "caseLabel": "REQ-SAFETY-B",
+      "requestId": "REQ-SAFETY-B",
+      "eventId": "safety-reply-clear",
+      "httpStatus": 200,
+      "response": {
+        "caseId": "REQ-SAFETY-B",
+        "status": "duplicate_detected",
+        "entities": {
+          "customerId": "CUS-027",
+          "siteId": "SITE-021",
+          "assetId": "AST-302"
+        },
+        "classification": {
+          "category": "breakdown",
+          "urgency": "high",
+          "safetyRisk": false,
+          "confidence": 0.9
+        },
+        "entitlement": {
+          "status": "not_assessed",
+          "sla": "not_applicable",
+          "evidence": [
+            {
+              "type": "agreement",
+              "id": "CON-027-A1",
+              "status": "active",
+              "serviceMode": "onsite",
+              "responseHours": 4,
+              "effectiveFrom": "2026-04-15",
+              "effectiveTo": "2027-03-31",
+              "inForceAtReceivedAt": true
+            },
+            {
+              "type": "asset_coverage",
+              "id": "AST-302",
+              "coverage": "premium"
+            }
+          ]
+        },
+        "nextActions": [
+          {
+            "type": "link_to_existing_job",
+            "reason": "Link this request to the existing job; do not raise a second work order"
+          },
+          {
+            "type": "same_fault_already_open",
+            "reason": "This reports a fault already open on this asset; it is linked to the existing work order rather than opening a second one"
+          }
+        ],
+        "customerResponseDraft": "Thank you for contacting Northstar Field Services. This relates to a request we already have open for Freezer plant 2 (AST-302) at Hoskote cold store under reference 8180a1c5-a030-4ddc-8d7a-30190d5e464a, WO-9290, REQ-8248, REQ-V006. We have linked your message to that existing job rather than raising a second one, so everything stays in one place. The team handling it will keep you updated.",
+        "missingInformation": [],
+        "workOrder": null,
+        "audit": {
+          "sourceReferences": [
+            {
+              "type": "request",
+              "id": "REQ-SAFETY-B",
+              "channel": "email"
+            },
+            {
+              "type": "customer",
+              "id": "CUS-027"
+            },
+            {
+              "type": "site",
+              "id": "SITE-021"
+            },
+            {
+              "type": "asset",
+              "id": "AST-302"
+            },
+            {
+              "type": "agreement",
+              "id": "CON-027-A1"
+            },
+            {
+              "type": "route",
+              "id": "technicians"
+            },
+            {
+              "type": "route",
+              "id": "work-orders"
+            },
+            {
+              "type": "route",
+              "id": "requests"
+            },
+            {
+              "type": "route",
+              "id": "work-order-history"
+            },
+            {
+              "type": "policy",
+              "id": "OPS-INTAKE-003"
+            },
+            {
+              "type": "work_order",
+              "id": "8180a1c5-a030-4ddc-8d7a-30190d5e464a"
+            },
+            {
+              "type": "work_order",
+              "id": "WO-9290"
+            },
+            {
+              "type": "linked_request",
+              "id": "REQ-8248"
+            },
+            {
+              "type": "linked_request",
+              "id": "REQ-V006"
+            }
+          ],
+          "modelTraceIds": [
+            "0a9d888f-6dfc-43b2-9eca-20134eb8c27c"
+          ],
+          "warnings": [
+            "Linked to the existing job; no second work order created"
+          ]
+        },
+        "alternativeTechnicians": [],
+        "relatedHistory": []
+      }
+    }
+  ]
+}
