@@ -17,6 +17,7 @@ from .model_client import ModelClient
 from .models import CaseInput, CaseResult
 from .northstar_client import NorthstarClient
 from .pipeline import process_case
+from .trace import build_trace_log
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("northstar.triage")
@@ -43,6 +44,10 @@ app = FastAPI(
 # Transport repeats: the same X-Event-ID delivered again must return the original result,
 # never a second decision. In-process for now; a submitted runtime would persist this.
 _RESULTS_BY_EVENT_ID: dict[str, CaseResult] = {}
+
+# One trace per request, appended to a file and kept in memory for /cases/recent.
+# Known limit: the in-memory tail is lost when the container restarts.
+trace_log = build_trace_log()
 
 
 @app.get("/health")
@@ -72,13 +77,24 @@ async def process(
     async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as http:
         northstar = NorthstarClient(settings, client=http)
         model = ModelClient(settings, client=http)
-        result = await process_case(case, northstar, model, x_event_id)
+        result = await process_case(case, northstar, model, x_event_id, trace_log)
 
     if x_event_id:
         _RESULTS_BY_EVENT_ID[x_event_id] = result
 
     logger.info("request=%s -> status=%s", case.requestId, result.status)
     return result
+
+
+@app.get("/cases/recent")
+async def recent_cases(limit: int = 20) -> dict[str, object]:
+    """The last few decision traces, newest first, for a coordinator or a browser.
+
+    Records every request the service handled, whoever called it. Contains no
+    credentials and no customer message body.
+    """
+    traces = trace_log.recent(max(1, min(limit, 50)))
+    return {"count": len(traces), "traces": traces}
 
 
 @app.exception_handler(Exception)

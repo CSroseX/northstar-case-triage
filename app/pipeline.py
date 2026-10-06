@@ -19,7 +19,7 @@ import logging
 from dataclasses import replace
 from typing import Any
 
-from .booking import book_work_order
+from .booking import BookingOutcome, book_work_order
 from .decide import Decision, Reason, decide
 from .evidence import AssetEvidence, gather_asset_evidence
 from .facts import RequestFacts
@@ -36,6 +36,7 @@ from .models import (
 )
 from .model_client import ModelClient
 from .northstar_client import NorthstarClient
+from .trace import TraceLog, build_trace
 
 logger = logging.getLogger("northstar.pipeline")
 
@@ -338,6 +339,7 @@ async def process_case(
     northstar: NorthstarClient,
     model: ModelClient,
     event_id: str | None = None,
+    trace_log: TraceLog | None = None,
 ) -> CaseResult:
     """Run one request through the pipeline."""
     text = f"{case.subject}. {case.body}"
@@ -377,10 +379,11 @@ async def process_case(
 
     # 5. Act. The only write this service makes, and only for a dispatch-ready case.
     booked: dict[str, Any] | None = None
+    booking_outcome: BookingOutcome | None = None
     extra_warnings = list(result.warnings or [])
 
     if decision.status == "dispatch_ready":
-        outcome = await book_work_order(
+        outcome = booking_outcome = await book_work_order(
             northstar, decision, evidence, case.requestId, event_id
         )
         extra_warnings.extend(outcome.warnings)
@@ -410,10 +413,20 @@ async def process_case(
                 outcome.duplicate,
             )
 
-    # 6. Respond.
-    return build_case_result(
+    # 6. Respond. The trace only records what the steps above already decided.
+    case_result = build_case_result(
         case, facts, evidence, decision, result.traceIds, extra_warnings, booked
     )
+
+    trace = build_trace(
+        case, evidence, facts, decision, result.traceIds, booking_outcome, booked
+    )
+    case_result.decisionTrace = trace
+    if trace_log is not None:
+        # Best effort: a logging failure must not change the response.
+        trace_log.record(trace)
+
+    return case_result
 
 
 def replace_asset_mentions(facts: RequestFacts, equipment_ids: list[str]) -> RequestFacts:

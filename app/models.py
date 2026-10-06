@@ -101,3 +101,6 @@ class CaseResult(_Open):
     missingInformation: list[str] = Field(default_factory=list)
     workOrder: dict[str, Any] | None = None
     audit: Audit
+    # Beyond the schema's required fields (additionalProperties: true): an ordered record
+    # of how this request reached its status, for a coordinator and for the audit trail.
+    decisionTrace: dict[str, Any] | None = None

@@ -267,7 +267,7 @@ def test_transport_repeat_returns_the_stored_result(monkeypatch) -> None:
 
     calls = {"n": 0}
 
-    async def fake_process(case, northstar, model, event_id=None):
+    async def fake_process(case, northstar, model, event_id=None, trace_log=None):
         calls["n"] += 1
         from app.models import Audit, Classification, Entitlement, Entities, CaseResult
 
