@@ -285,6 +285,13 @@ def build_case_result(
         source_references.extend(
             {"type": "linked_request", "id": req} for req in decision.linkedRequests
         )
+    if decision.otherOpenWorkOrders:
+        # Context for a coordinator: other jobs open on the same equipment, which this
+        # request was deliberately NOT linked to.
+        source_references.extend(
+            {"type": "other_open_work_order", "id": wo, "linked": False}
+            for wo in decision.otherOpenWorkOrders
+        )
 
     warnings = [w for w in (decision.warnings + (extra_warnings or [])) if w]
     if decision.safetyQuote:

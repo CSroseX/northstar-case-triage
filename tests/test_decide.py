@@ -79,8 +79,11 @@ async def test_duplicate_links_the_earlier_request_and_open_job() -> None:
     result = decide(case.facts, ev, f"{case.subject}. {case.body}")
 
     # REQ-V001 is in the recent requests for this asset: email plus portal, one job.
-    assert "REQ-V001" in result.linkedRequests
-    assert result.linkedWorkOrders == ["WO-9294"]
+    assert result.linkedRequests == ["REQ-V001"]
+    # WO-9294 was raised from REQ-8254 ("Main DG failed remote start"), a different
+    # incident, so it is context rather than something this request is linked to.
+    assert result.linkedWorkOrders == []
+    assert result.otherOpenWorkOrders == ["WO-9294"]
 
 
 async def test_dispatch_recommends_a_free_local_technician_provisionally() -> None:
@@ -801,3 +804,91 @@ async def test_a_first_chase_inside_the_window_is_still_a_duplicate() -> None:
 
     assert result.status == "duplicate_detected"
     assert "REQ-ORIG" in result.linkedRequests
+
+
+async def test_a_duplicate_links_only_the_job_it_matched() -> None:
+    """The bug: a repeat of REQ-V006 was linked to WO-9290, a different fault.
+
+    AST-302 has WO-9290 open for "compressor cycling". A fresh "stopped cooling" report
+    matches the REQ-V006 incident, not that job. Linking every open work order on the
+    equipment tells the customer we have attached them to the wrong work.
+    """
+    ev = await _evidence("AST-302", "2026-09-20T09:40:00Z")
+    ev.recentRequests = [
+        {
+            "requestId": "REQ-V006",
+            "receivedAt": "2026-09-20T09:31:00Z",
+            "subject": "Freezer plant 2 stopped",
+            "body": "AST-302 at SITE-021 has stopped cooling.",
+        }
+    ]
+    facts = RequestFacts(
+        assetMentions=["AST-302"],
+        safetySignal="denied",
+        safetyQuote="no smoke, water or unusual smell",
+        intent="breakdown",
+        symptomSummary="stopped cooling",
+        requiresOnsite=True,
+        sameFaultAsExisting="same",
+        sameFaultReference="REQ-V006",
+    )
+    result = decide(
+        facts, ev, "AST-302 has stopped cooling. There is no smoke, water or unusual smell."
+    )
+
+    assert result.status == "duplicate_detected"
+    # Linked to what it matched...
+    assert result.linkedRequests == ["REQ-V006"]
+    # ...and NOT to the unrelated compressor job.
+    assert "WO-9290" not in result.linkedWorkOrders
+    # which is still available as context for a coordinator.
+    assert "WO-9290" in result.otherOpenWorkOrders
+
+
+async def test_a_duplicate_reply_cites_the_matched_reference() -> None:
+    """The reply must quote the matched request, not the first readable WO- it finds."""
+    from app.replies import build_customer_reply
+
+    ev = await _evidence("AST-302", "2026-09-20T09:40:00Z")
+    ev.recentRequests = [
+        {
+            "requestId": "REQ-V006",
+            "receivedAt": "2026-09-20T09:31:00Z",
+            "subject": "Freezer plant 2 stopped",
+            "body": "AST-302 at SITE-021 has stopped cooling.",
+        }
+    ]
+    facts = RequestFacts(
+        assetMentions=["AST-302"],
+        safetySignal="denied",
+        safetyQuote="no smoke, water or unusual smell",
+        intent="breakdown",
+        symptomSummary="stopped cooling",
+        requiresOnsite=True,
+        sameFaultAsExisting="same",
+        sameFaultReference="REQ-V006",
+    )
+    decision = decide(
+        facts, ev, "AST-302 has stopped cooling. There is no smoke, water or unusual smell."
+    )
+    draft = build_customer_reply(facts, ev, decision)
+
+    assert "REQ-V006" in draft
+    assert "WO-9290" not in draft
+
+
+async def test_a_duplicate_that_references_an_open_job_links_that_job() -> None:
+    """When the customer does point at an open job, that is the one we link."""
+    ev = await _evidence("AST-302", "2026-09-20T09:40:00Z")
+    facts = RequestFacts(
+        assetMentions=["AST-302"],
+        safetySignal="absent",
+        intent="follow_up",
+        symptomSummary="chasing the compressor job",
+        referencedRequests=["WO-9290"],
+        sameFaultAsExisting="same",
+    )
+    result = decide(facts, ev, "Any update on WO-9290?")
+
+    assert result.linkedWorkOrders == ["WO-9290"]
+    assert "WO-9290" not in result.otherOpenWorkOrders

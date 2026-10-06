@@ -64,7 +64,11 @@ def _equipment_phrase(evidence: AssetEvidence) -> str:
 
 
 def _issue_line(facts: RequestFacts, evidence: AssetEvidence) -> str:
-    """"Issue: <problem> — <equipment> at <site>", from whichever parts we have."""
+    """"Issue: <problem> - <equipment> - <site>", from whichever parts we have.
+
+    A plain hyphen, not an em dash: the draft is read in terminals and pasted into mail
+    clients whose encoding we do not control, and an em dash renders as mojibake there.
+    """
     summary = (facts.symptomSummary or "").strip()
     # Defensive: the model is asked for a short phrase, but a stray sentence should not
     # produce a mangled line.
@@ -76,10 +80,10 @@ def _issue_line(facts: RequestFacts, evidence: AssetEvidence) -> str:
 
     equipment = _equipment_phrase(evidence)
     site = (evidence.site or {}).get("name")
-    place = " — ".join(part for part in [equipment, site] if part)
+    place = " - ".join(part for part in [equipment, site] if part)
 
     if summary and place:
-        return f"Issue: {summary} — {place}"
+        return f"Issue: {summary} - {place}"
     if summary:
         return f"Issue: {summary}"
     if place:
@@ -150,9 +154,13 @@ def _next_step(
 
     # --- duplicate: linked to the existing request ----------------------
     if status == "duplicate_detected":
+        # Only what this repeat actually matched. Other open jobs on the same equipment
+        # are a different fault, and citing one would tell the customer we have linked
+        # them to the wrong work. The request reference is preferred: it is the one the
+        # customer raised and recognises, and created work orders carry only a UUID.
         references = [
             ref
-            for ref in decision.linkedWorkOrders + decision.linkedRequests
+            for ref in decision.linkedRequests + decision.linkedWorkOrders
             if _is_customer_reference(ref)
         ]
         reference_text = f" (reference {references[0]})" if references else ""

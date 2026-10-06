@@ -219,7 +219,7 @@ symptoms: _Main DG service already raised from the portal_
 
 Why:
 - This reports a fault already raised for this equipment, within the 4-hour response window of the earlier request; it is linked to that request rather than opening a second one _(OPS-INTAKE-003)_
-- Linked to: WO-9294, REQ-8254, REQ-V001
+- Linked to: REQ-V001
 - ⚠️ Linked to the existing job; no second work order created
 
 _Email plus portal reporting one job. The earlier request made no work order._

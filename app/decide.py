@@ -115,6 +115,9 @@ class Decision:
     safetyQuestion: str = ""
     # Past jobs on this equipment, attached when the request asks about earlier work.
     relatedHistory: list[dict[str, Any]] = field(default_factory=list)
+    # Other open jobs on the same equipment. Context for a coordinator and the audit
+    # record only — never presented as what this request was linked to.
+    otherOpenWorkOrders: list[str] = field(default_factory=list)
     # Qualified, available, same-city technicians other than the one recommended.
     alternativeTechnicians: list[TechnicianMatch] = field(default_factory=list)
 
@@ -132,6 +135,7 @@ class Decision:
             "linkedRequests": self.linkedRequests,
             "safetyQuestion": self.safetyQuestion,
             "relatedHistory": self.relatedHistory,
+            "otherOpenWorkOrders": self.otherOpenWorkOrders,
             "alternativeTechnicians": [t.as_dict() for t in self.alternativeTechnicians],
         }
 
@@ -249,6 +253,40 @@ def _response_window_hours(evidence: AssetEvidence) -> float | None:
         return float(hours) if hours is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _matched_reference(
+    facts: RequestFacts, evidence: AssetEvidence, prior: PriorRequest | None
+) -> tuple[str | None, str | None]:
+    """The ONE job and request this repeat actually matched, as (workOrderId, requestId).
+
+    A duplicate is linked to what it matched, never to everything open on the equipment:
+    a second, unrelated job on the same machine is a different fault, and citing it tells
+    the customer we have linked them to the wrong work (CLAUDE.md rule 7).
+    """
+    referenced = {r.upper() for r in facts.referencedRequests}
+    model_reference = str(getattr(facts, "sameFaultReference", "") or "").strip().upper()
+    wanted = referenced | ({model_reference} if model_reference else set())
+
+    # An explicitly referenced open job wins: that is id-based evidence.
+    for work_order in evidence.openWorkOrders:
+        wo_id = str(work_order.get("id") or "")
+        req_id = str(work_order.get("requestId") or "")
+        if wo_id.upper() in wanted or (req_id and req_id.upper() in wanted):
+            return (wo_id or None, req_id or None)
+
+    # Otherwise the earlier request that opened this conversation, and the open job
+    # raised from it if there is one.
+    if prior is not None and prior.requestId:
+        for work_order in evidence.openWorkOrders:
+            if str(work_order.get("requestId") or "").upper() == prior.requestId.upper():
+                return (str(work_order.get("id") or "") or None, prior.requestId)
+        return (None, prior.requestId)
+
+    # A referenced id we cannot tie to a record is still the customer's own reference.
+    if wanted:
+        return (None, sorted(wanted)[0])
+    return (None, None)
 
 
 def _same_fault(facts: RequestFacts, evidence: AssetEvidence) -> bool | None:
@@ -573,9 +611,16 @@ def decide(
     # record only that it came in late, never that a promise was missed, because the
     # records here cannot show whether anyone attended.
     same_fault = _same_fault(facts, evidence)
-    linked_wos = [str(w.get("id")) for w in evidence.openWorkOrders if w.get("id")]
     prior = _earlier_request_for_asset(evidence)
     window_hours = _response_window_hours(evidence)
+
+    # Exactly what this repeat matched, and everything else open on the equipment, which
+    # is context for a coordinator rather than something the customer is linked to.
+    matched_wo, matched_req = _matched_reference(facts, evidence, prior)
+    all_open = [str(w.get("id")) for w in evidence.openWorkOrders if w.get("id")]
+    other_open = [wo for wo in all_open if wo != matched_wo]
+    linked_wos = [matched_wo] if matched_wo else []
+    linked_reqs = [matched_req] if matched_req else []
 
     if same_fault is not False:
         within_window = (
@@ -585,15 +630,6 @@ def decide(
         )
 
         if same_fault is True and within_window:
-            linked_reqs = sorted(
-                {
-                    str(w.get("requestId"))
-                    for w in evidence.openWorkOrders
-                    if w.get("requestId")
-                }
-                | set(facts.referencedRequests)
-                | ({prior.requestId} if prior and prior.requestId else set())
-            )
             return Decision(
                 status="duplicate_detected",
                 reasons=[
@@ -607,6 +643,7 @@ def decide(
                 ],
                 linkedWorkOrders=linked_wos,
                 linkedRequests=linked_reqs,
+                otherOpenWorkOrders=other_open,
                 warnings=["Linked to the existing job; no second work order created"],
             )
 
@@ -629,10 +666,8 @@ def decide(
                 status="human_escalation_required",
                 reasons=[Reason(code, detail, "OPS-INTAKE-003")],
                 linkedWorkOrders=linked_wos,
-                linkedRequests=sorted(
-                    set(facts.referencedRequests)
-                    | ({prior.requestId} if prior and prior.requestId else set())
-                ),
+                linkedRequests=linked_reqs,
+                otherOpenWorkOrders=other_open,
                 missingInformation=["Coordinator decision on the repeated request"],
                 warnings=[
                     "Follow-up received after the contract response window; not dispatched "
@@ -657,11 +692,8 @@ def decide(
                         )
                     ],
                     linkedWorkOrders=linked_wos,
-                    linkedRequests=sorted(
-                        set(facts.referencedRequests) | {prior.requestId}
-                        if prior.requestId
-                        else set(facts.referencedRequests)
-                    ),
+                    linkedRequests=linked_reqs,
+                    otherOpenWorkOrders=other_open,
                     warnings=["Linked to the existing job; no second work order created"],
                 )
 
@@ -677,10 +709,8 @@ def decide(
                     status="human_escalation_required",
                     reasons=[reason],
                     linkedWorkOrders=linked_wos,
-                    linkedRequests=sorted(
-                        set(facts.referencedRequests)
-                        | ({prior.requestId} if prior.requestId else set())
-                    ),
+                    linkedRequests=linked_reqs,
+                    otherOpenWorkOrders=other_open,
                     missingInformation=["Coordinator decision on the repeated request"],
                     warnings=[
                         "Follow-up received after the contract response window; not "
@@ -699,7 +729,8 @@ def decide(
                     )
                 ],
                 linkedWorkOrders=linked_wos,
-                linkedRequests=sorted(set(facts.referencedRequests)),
+                linkedRequests=linked_reqs,
+                otherOpenWorkOrders=other_open,
                 missingInformation=["Whether this is the same fault as the job already open"],
                 warnings=["Possible duplicate held for operator review"],
             )

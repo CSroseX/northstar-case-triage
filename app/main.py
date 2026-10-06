@@ -21,8 +21,24 @@ from .pipeline import process_case
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("northstar.triage")
 
+class Utf8JSONResponse(JSONResponse):
+    """JSON with an explicit charset.
+
+    Starlette's default omits it, so a client that does not assume UTF-8 — a Windows
+    terminal, or a mail client pasting a draft — renders non-ASCII characters as
+    mojibake. The drafts themselves stay plain ASCII, but customer names and equipment
+    nicknames come from the records and may not be.
+    """
+
+    media_type = "application/json; charset=utf-8"
+
+
 settings = load_settings()
-app = FastAPI(title="Northstar case triage", version="0.2.0")
+app = FastAPI(
+    title="Northstar case triage",
+    version="0.2.0",
+    default_response_class=Utf8JSONResponse,
+)
 
 # Transport repeats: the same X-Event-ID delivered again must return the original result,
 # never a second decision. In-process for now; a submitted runtime would persist this.

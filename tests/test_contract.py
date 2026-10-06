@@ -146,3 +146,24 @@ def test_missing_event_id_still_returns_a_valid_result(validator) -> None:
     response = client.post("/cases/process", json=request_body)
     assert response.status_code == 200
     assert not list(validator.iter_errors(response.json()))
+
+
+def test_responses_declare_utf8() -> None:
+    """Without an explicit charset, terminals and mail clients garble the drafts."""
+    health = client.get("/health")
+    assert health.headers["content-type"] == "application/json; charset=utf-8"
+
+    _, request_body = _visible_requests()[0]
+    response = client.post(
+        "/cases/process", json=request_body, headers={"X-Event-ID": "test-charset"}
+    )
+    assert response.headers["content-type"] == "application/json; charset=utf-8"
+
+
+def test_drafts_use_a_plain_hyphen_separator() -> None:
+    """An em dash renders as mojibake where we do not control the encoding."""
+    for case_id, request_body in _visible_requests():
+        draft = client.post(
+            "/cases/process", json=request_body, headers={"X-Event-ID": f"dash-{case_id}"}
+        ).json()["customerResponseDraft"]
+        assert "\u2014" not in draft and "\u2013" not in draft, draft
