@@ -16,29 +16,55 @@ from typing import Any
 from .evidence import AssetEvidence, TechnicianMatch
 from .facts import RequestFacts
 
-# Hazard vocabulary from POL-SAFETY-001: fuel/gas leak, smoke, water near electrical
-# equipment, people dizzy or unwell in an equipment room. This is a backstop over the
-# model's own reading, never a replacement for it.
+# Hazard vocabulary from POL-SAFETY-001, which lists exactly four triggers: a suspected
+# fuel or gas leak, smoke, water near electrical equipment, and people feeling dizzy or
+# unwell in an equipment room. This is a backstop over the model's own reading, never a
+# replacement for it.
+#
+# A bare commodity noun is NOT a hazard: "diesel generator service", "the gas plant" and
+# "water pump maintenance" are ordinary bookings. So fuel and water only fire in the
+# hazardous *combination* the policy describes, within a short proximity window and in
+# either order. Smoke/fire and a person unwell fire on their own, as the policy lists
+# them unconditionally.
+#
+# This backstop only runs when the model reported safetySignal == "absent". A customer
+# ruling a hazard out ("there is no smoke") comes back as "denied", which never reaches
+# here — so there is deliberately no negation handling: it suppressed real hazards such
+# as "the alarm is not working and there's smoke".
+
+# Up to ~40 characters of filler between the two halves of a combination.
+_GAP = r"[^.!?;]{0,40}?"
+
+_FUEL = r"(?:diesel|fuel|gas|petrol|lpg)"
+_LEAK = r"(?:leak(?:ing|age|s)?|spill(?:ed|age|ing)?|smell(?:s|ing)?|odou?r|fumes?)"
+
+_WATER = r"(?:water|wet|flood(?:ed|ing)?|damp)"
+_ELECTRICAL = r"(?:electrical|electrics|panel|ups|switchgear|wiring|wires?|socket|outlet|busbar|transformer|distribution board|db)"
+_POOLING = r"(?:pool(?:s|ed|ing)?|collect(?:s|ed|ing)?|leak(?:s|ed|ing|age)?|drip(?:s|ped|ping)?|spill(?:ed|age|ing)?|on the floor|patch)"
+
 HAZARD_PATTERNS: tuple[tuple[str, str], ...] = (
-    (r"\bsmoke\b|\bsmoking\b|\bburning\b|\bburnt\b|\bfire\b|\bsparks?\b", "smoke or fire"),
-    (r"\bdiesel\b|\bfuel\b|\bgas\b|\bpetrol\b|\blpg\b", "fuel or gas"),
-    (r"\bleak(?:ing|age|s)?\b|\bspill(?:ed|age|ing)?\b", "leak or spill"),
-    (r"\bsmell(?:s|ing)?\b|\bodour\b|\bodor\b|\bfumes?\b", "smell or fumes"),
-    (r"\bwater\b|\bwet\b|\bflood(?:ed|ing)?\b|\bdamp\b", "water"),
-    (r"\bdizzy\b|\blight[- ]?headed\b|\bfaint(?:ing)?\b|\bnause\w*\b|\bunwell\b|\bcollaps\w*\b",
-     "person unwell"),
-    (r"\bshock(?:ed|s)?\b|\belectrocut\w*\b|\bexposed wir\w*\b|\blive wir\w*\b", "electrical risk"),
+    # Smoke/fire: listed unconditionally by POL-SAFETY-001.
+    (r"\b(?:smoke|smoking|burning|burnt|fire|sparks?)\b", "smoke or fire"),
+    # Fuel or gas only when a leak/spill/smell/fumes word is nearby, either order.
+    (
+        rf"\b{_FUEL}\b{_GAP}\b{_LEAK}\b|\b{_LEAK}\b{_GAP}\b{_FUEL}\b",
+        "fuel or gas leak",
+    ),
+    # Water only near electrical context, or described as pooling/leaking.
+    (
+        rf"\b{_WATER}\b{_GAP}\b{_ELECTRICAL}\b|\b{_ELECTRICAL}\b{_GAP}\b{_WATER}\b",
+        "water near electrical equipment",
+    ),
+    (
+        rf"\b{_WATER}\b{_GAP}\b{_POOLING}|\b{_POOLING}{_GAP}\b{_WATER}\b",
+        "water pooling or leaking",
+    ),
+    # A person unwell: listed unconditionally by POL-SAFETY-001.
+    (
+        r"\b(?:dizzy|light[- ]?headed|lightheaded|faint(?:ing)?|nause\w*|unwell|collaps\w*)\b",
+        "person unwell",
+    ),
 )
-
-# "no smoke, water or unusual smell" — the customer ruling a hazard out. A negated hazard
-# word must not trip the backstop.
-NEGATION_PATTERN = re.compile(
-    r"\b(?:no|not|without|never|nothing|none|neither|nor|n't)\b", re.IGNORECASE
-)
-
-# How far before a hazard word a negation still applies. Covers "there is no smoke, water
-# or unusual smell" without reaching across a sentence boundary.
-NEGATION_WINDOW_CHARS = 60
 
 ONSITE_REQUEST_PATTERN = re.compile(
     r"\b(?:on[- ]?site|onsite|someone (?:on site|out|to attend|to come)|send (?:someone|a )?"
@@ -90,27 +116,42 @@ class Decision:
         }
 
 
-def _is_negated(text: str, start: int) -> bool:
-    """True when a negation sits shortly before the match, within the same clause."""
-    window_start = max(0, start - NEGATION_WINDOW_CHARS)
-    window = text[window_start:start]
-    # Don't let a negation reach across a sentence boundary.
-    for boundary in (".", "!", "?", ";"):
-        if boundary in window:
-            window = window.rsplit(boundary, 1)[1]
-    return bool(NEGATION_PATTERN.search(window))
-
-
 def find_hazard_words(text: str) -> list[str]:
-    """Hazard vocabulary present and not negated. The backstop over the model's reading."""
+    """Hazard wording present. The backstop over the model's reading.
+
+    No negation handling: this only runs when the model said safetySignal == "absent",
+    and a customer ruling a hazard out comes back as "denied" instead.
+    """
     found: list[str] = []
     for pattern, label in HAZARD_PATTERNS:
-        for match in re.finditer(pattern, text, re.IGNORECASE):
-            if not _is_negated(text, match.start()):
-                if label not in found:
-                    found.append(label)
-                break
+        if re.search(pattern, text, re.IGNORECASE) and label not in found:
+            found.append(label)
     return found
+
+
+def _normalise_quote(text: str) -> str:
+    """Lowercase, collapse whitespace and drop punctuation, for quote comparison.
+
+    Tolerates the small differences between what the model echoes back and the body
+    text (curly quotes, a trailing full stop, line wrapping) without being so loose
+    that unrelated words would match.
+    """
+    lowered = text.lower().replace("’", "'").replace("‘", "'")
+    lowered = lowered.replace("“", '"').replace("”", '"')
+    # Keep letters, digits and apostrophes; everything else becomes a separator.
+    return " ".join(re.findall(r"[a-z0-9']+", lowered))
+
+
+def quote_is_in_text(quote: str, text: str) -> bool:
+    """Does the model's safety quote actually appear in the request text?
+
+    The model must not be able to clear a hazard with words the customer never wrote
+    (POL-SAFETY-001: preserve the customer's original wording).
+    """
+    normalised_quote = _normalise_quote(quote)
+    if not normalised_quote:
+        return False
+    return normalised_quote in _normalise_quote(text)
 
 
 def _wants_onsite(facts: RequestFacts, text: str) -> bool:
@@ -125,9 +166,14 @@ def _wants_onsite(facts: RequestFacts, text: str) -> bool:
 def _same_fault(facts: RequestFacts, evidence: AssetEvidence) -> bool | None:
     """Same fault as an open job, a different one, or unclear?
 
-    True  - the message points at an existing request/WO, or repeats its symptoms.
+    True  - the message points at an existing request/WO, or the model read it as the
+            same fault.
     False - an open job exists but this is plainly a different fault.
     None  - cannot tell. A human decides (CLAUDE.md rule 7).
+
+    Id-based evidence is checked first: a referenced request or work order id is a fact,
+    not a judgement. Beyond that the model's own reading decides, because comparing two
+    descriptions of a fault is a reading task, not something code should guess at.
     """
     if not evidence.openWorkOrders and not facts.referencedRequests:
         return False
@@ -156,27 +202,21 @@ def _same_fault(facts: RequestFacts, evidence: AssetEvidence) -> bool | None:
         if facts.intent == "follow_up":
             return None
 
-    if not evidence.openWorkOrders:
-        return False
-
-    # Compare the reported symptoms with the open job's summary.
-    summary_words = {
-        w
-        for wo in evidence.openWorkOrders
-        for w in re.findall(r"[a-z]{4,}", str(wo.get("summary", "")).lower())
-    }
-    symptom_words = set(re.findall(r"[a-z]{4,}", facts.symptomSummary.lower()))
-    if not summary_words or not symptom_words:
-        # An open job exists but we have nothing to compare. Don't guess either way.
-        return None
-
-    overlap = summary_words & symptom_words
-    if len(overlap) >= 2:
+    # The model's own reading of whether this repeats an open fault. Accessed
+    # defensively so this works whether or not the field is present on the facts.
+    assessment = str(getattr(facts, "sameFaultAsExisting", "") or "").strip().lower()
+    if assessment == "same":
         return True
-    if facts.intent == "follow_up":
-        # A follow-up against an open job, with no symptom match either way.
+    if assessment == "different":
+        return False
+    if assessment == "unclear":
         return None
-    return False
+
+    # Not assessed, or an unrecognised value. Nothing open and nothing referenced is
+    # plainly not a duplicate; anything else is a human's call, never a guess.
+    if not evidence.openWorkOrders and not facts.referencedRequests:
+        return False
+    return None
 
 
 def _coverage_problem(evidence: AssetEvidence, wants_onsite: bool) -> Reason | None:
@@ -279,7 +319,9 @@ def decide(
 
     # The model cannot be the reason a hazard is missed (CLAUDE.md rule 2). Unsignalled
     # hazard wording, or an unusable model result, is treated as ambiguous — but an
-    # explicit denial by the customer is theirs to make, not ours to override.
+    # explicit denial by the customer is theirs to make, not ours to override. The denial
+    # has to be the customer's, though: it only stands when the quote is really in the
+    # text, so the model cannot clear a hazard with words nobody wrote.
     escalate_as_ambiguous = signal == "ambiguous"
     ambiguity_reason: Reason | None = None
 
@@ -297,6 +339,20 @@ def decide(
             "safety_signal_ambiguous",
             "The description may indicate a hazard and must be clarified before anything "
             "progresses",
+            "POL-SAFETY-001",
+        )
+    elif signal == "denied" and not quote_is_in_text(facts.safetyQuote, request_text):
+        # A denial with no verifiable wording behind it is not the customer's denial.
+        escalate_as_ambiguous = True
+        detail = (
+            "The hazard was reported as ruled out, but the quoted wording "
+            f'("{facts.safetyQuote}") does not appear in the request'
+            if facts.safetyQuote
+            else "The hazard was reported as ruled out, but no quoted wording was given"
+        )
+        ambiguity_reason = Reason(
+            "safety_denial_unverified",
+            f"{detail}; the denial cannot be confirmed and is treated as ambiguous",
             "POL-SAFETY-001",
         )
     elif signal == "absent" and hazard_words:

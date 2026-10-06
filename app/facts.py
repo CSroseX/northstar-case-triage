@@ -23,6 +23,7 @@ VALID_SAFETY_SIGNALS = frozenset({"affirmed", "denied", "ambiguous", "absent"})
 VALID_INTENTS = frozenset(
     {"planned_service", "breakdown", "coverage_question", "follow_up", "other"}
 )
+VALID_SAME_FAULT = frozenset({"same", "different", "unclear"})
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,12 @@ class RequestFacts:
     # Earlier requests or work orders the message points back to (REQ-…, WO-…).
     referencedRequests: list[str] = field(default_factory=list)
 
+    # Judged against the open jobs and earlier requests supplied in the prompt:
+    # "same", "different", "unclear", or "" when nothing was there to compare.
+    sameFaultAsExisting: str = ""
+    # Which job or request it matches (WO-… / REQ-…), when the answer is "same".
+    sameFaultReference: str = ""
+
     # Does the message ask for someone to attend in person? Decides whether a remote_only
     # agreement actually conflicts with what was asked for.
     requiresOnsite: bool | None = None
@@ -60,6 +67,8 @@ class RequestFacts:
             "intent": self.intent,
             "symptomSummary": self.symptomSummary,
             "referencedRequests": list(self.referencedRequests),
+            "sameFaultAsExisting": self.sameFaultAsExisting,
+            "sameFaultReference": self.sameFaultReference,
             "requiresOnsite": self.requiresOnsite,
             "modelUnavailable": self.modelUnavailable,
         }
@@ -95,6 +104,12 @@ def parse_facts(payload: dict[str, Any] | None) -> RequestFacts:
     if not isinstance(requires_onsite, bool):
         requires_onsite = None
 
+    raw_same_fault = payload.get("sameFaultAsExisting")
+    same_fault = (
+        raw_same_fault if raw_same_fault in VALID_SAME_FAULT else ""
+    )
+    same_fault_ref = payload.get("sameFaultReference")
+
     quote = payload.get("safetyQuote")
     return RequestFacts(
         assetMentions=_string_list(payload.get("assetMentions")),
@@ -103,6 +118,8 @@ def parse_facts(payload: dict[str, Any] | None) -> RequestFacts:
         intent=intent,
         symptomSummary=str(payload.get("symptomSummary") or "").strip(),
         referencedRequests=_string_list(payload.get("referencedRequests")),
+        sameFaultAsExisting=same_fault,
+        sameFaultReference=str(same_fault_ref).strip() if isinstance(same_fault_ref, str) else "",
         requiresOnsite=requires_onsite,
         modelUnavailable=False,
     )

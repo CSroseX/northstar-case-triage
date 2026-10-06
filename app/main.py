@@ -8,18 +8,25 @@ from __future__ import annotations
 
 import logging
 
+import httpx
 from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
 from .config import load_settings
+from .model_client import ModelClient
 from .models import CaseInput, CaseResult
-from .triage import triage
+from .northstar_client import NorthstarClient
+from .pipeline import process_case
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("northstar.triage")
 
 settings = load_settings()
-app = FastAPI(title="Northstar case triage", version="0.1.0")
+app = FastAPI(title="Northstar case triage", version="0.2.0")
+
+# Transport repeats: the same X-Event-ID delivered again must return the original result,
+# never a second decision. In-process for now; a submitted runtime would persist this.
+_RESULTS_BY_EVENT_ID: dict[str, CaseResult] = {}
 
 
 @app.get("/health")
@@ -33,15 +40,27 @@ async def health() -> dict[str, object]:
 
 
 @app.post("/cases/process", response_model=CaseResult, response_model_exclude_none=False)
-async def process_case(
+async def process(
     case: CaseInput,
     x_event_id: str | None = Header(default=None, alias="X-Event-ID"),
 ) -> CaseResult:
     """Return the correct first action for one service request."""
-    # Log identifiers only. Request bodies may contain customer detail, and nothing
-    # secret is ever logged.
+    # Log identifiers only: request bodies carry customer detail, and nothing secret
+    # is ever logged.
     logger.info("processing request=%s channel=%s event=%s", case.requestId, case.channel, x_event_id)
-    result = triage(case, x_event_id)
+
+    if x_event_id and x_event_id in _RESULTS_BY_EVENT_ID:
+        logger.info("event=%s already processed; returning the stored result", x_event_id)
+        return _RESULTS_BY_EVENT_ID[x_event_id]
+
+    async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as http:
+        northstar = NorthstarClient(settings, client=http)
+        model = ModelClient(settings, client=http)
+        result = await process_case(case, northstar, model, x_event_id)
+
+    if x_event_id:
+        _RESULTS_BY_EVENT_ID[x_event_id] = result
+
     logger.info("request=%s -> status=%s", case.requestId, result.status)
     return result
 
