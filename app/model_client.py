@@ -43,8 +43,12 @@ Reply with JSON only, using exactly these keys:
    "denied"    - the sender explicitly rules those out, e.g. "there is no smoke, water or smell".
    "ambiguous" - the wording might indicate a hazard but is not clear either way.
    "absent"    - the message does not touch on any hazard.
+   An attachment summary is part of the message for this purpose. If the body says
+   nothing is wrong but an attachment describes a hazard, the signal is "affirmed" — the
+   body's reassurance does not override what the attachment reports.
 "safetyQuote": the sender's exact words that drove the signal, copied verbatim from the
    message, including for "denied". "" when the signal is "absent". Never paraphrase.
+   When the hazard came from an attachment summary, quote that summary verbatim.
 "intent": one of "planned_service" (routine or scheduled maintenance arranged in advance),
    "breakdown" (equipment has failed, or is failing, now), "coverage_question" (asking what
    the agreement covers), "follow_up" (about a job already raised), "other".
@@ -67,14 +71,19 @@ Reply with JSON only, using exactly these keys:
    request can be handled remotely or is purely administrative.
 "sameFaultAsExisting": compare this message with the open jobs and earlier requests listed
    below. "" if nothing was listed. Otherwise:
-   "same"      - only when the message points at one of them (by identifier, or by saying
-                 this is about a job already raised), OR describes the same symptom that
-                 one of them already describes.
-   "different" - a symptom that is not the one already listed, and with no reference to the
-                 existing job. Equipment can develop a second, unrelated fault while a job
-                 is open; being the same machine does not make it the same fault.
+   "same"      - the message points at one of them (by identifier, or by saying this is
+                 about a job or request already raised), OR describes the same symptom
+                 that one of them already describes, OR asks for the same work one of the
+                 listed requests already asks for. A second message asking for the same
+                 scheduled service, or saying someone else already reported this, or
+                 saying it is "about the same visit", is "same" — even when no fault is
+                 described at all and even when the wording is entirely different.
+   "different" - a symptom or a piece of work that is not the one already listed, and with
+                 no reference to it. Equipment can develop a second, unrelated fault while
+                 a job is open; being the same machine does not make it the same fault.
    "unclear"   - the message could plausibly be either and you cannot tell from the words.
-   Do not answer "same" merely because the equipment matches.
+   Do not answer "same" merely because the equipment matches. Do answer "same" when the
+   message says, in any words, that this has already been raised.
 "sameFaultReference": the identifier it matches when the answer is "same", otherwise "".
 "refersToPreviousWork": true ONLY when the message asks us to look at work Northstar has
    already carried out on this equipment — "review the June visit", "compare with the July
@@ -156,14 +165,32 @@ def build_user_prompt(
     body: str,
     open_work_orders: list[dict[str, Any]] | None = None,
     recent_requests: list[dict[str, Any]] | None = None,
+    attachments: list[dict[str, Any]] | None = None,
 ) -> str:
     """The message plus only the records needed to judge a repeat fault.
 
     Deliberately narrow: the request text and the jobs/requests for this one asset.
     No credentials, no customer list, no agreement terms — the model does not decide
     coverage, so it is not shown coverage.
+
+    Attachment summaries are part of the message. A hazard is often only in the photo
+    description ("a pool of water ... reaches the open electrical panel") while the body
+    says "nothing urgent", and POL-SAFETY-001 does not care which field it arrived in.
     """
     parts = [f"REQUEST\nSubject: {subject}\nBody: {body}"]
+
+    if attachments:
+        lines = [
+            f"- {a.get('name') or a.get('id')} ({a.get('type') or 'file'}): {summary}"
+            for a in attachments
+            if (summary := str(a.get("summary") or "").strip())
+        ]
+        if lines:
+            parts.append(
+                "ATTACHMENTS ON THIS REQUEST\n"
+                "Treat these summaries as part of the customer's report.\n"
+                + "\n".join(lines)
+            )
 
     if open_work_orders:
         lines = [
@@ -220,9 +247,12 @@ class ModelClient:
         body: str,
         open_work_orders: list[dict[str, Any]] | None = None,
         recent_requests: list[dict[str, Any]] | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> ModelResult:
         """One call. Any failure returns modelUnavailable facts rather than raising."""
-        user_prompt = build_user_prompt(subject, body, open_work_orders, recent_requests)
+        user_prompt = build_user_prompt(
+            subject, body, open_work_orders, recent_requests, attachments
+        )
 
         cached = self._cache.get(user_prompt)
         if cached is not None:

@@ -130,15 +130,22 @@ def _index_assets(customers: list[dict[str, Any]]) -> dict[str, tuple[dict, dict
 
 def _normalise_work_order(raw: dict[str, Any]) -> dict[str, Any]:
     """The work-orders route uses snake_case; every other route is camelCase."""
+    # Work orders Northstar seeded carry `summary` at the top level. Ones created through
+    # the API keep what was posted under `payload` and do not promote it, so the summary
+    # we sent is only visible there. Without this fallback our own jobs still look
+    # summary-less to the duplicate check, which is the problem sending one was meant to
+    # solve.
+    payload = raw.get("payload") if isinstance(raw.get("payload"), dict) else {}
     return {
         "id": raw.get("id"),
-        "requestId": raw.get("request_id", raw.get("requestId")),
+        "requestId": raw.get("request_id", raw.get("requestId")) or payload.get("requestId"),
         "customerId": raw.get("customer_id", raw.get("customerId")),
         "siteId": raw.get("site_id", raw.get("siteId")),
-        "assetId": raw.get("asset_id", raw.get("assetId")),
-        "technicianId": raw.get("technician_id", raw.get("technicianId")),
+        "assetId": raw.get("asset_id", raw.get("assetId")) or payload.get("assetId"),
+        "technicianId": raw.get("technician_id", raw.get("technicianId"))
+        or payload.get("technicianId"),
         "status": raw.get("status"),
-        "summary": raw.get("summary"),
+        "summary": raw.get("summary") or payload.get("summary"),
         "createdAt": raw.get("created_at", raw.get("createdAt")),
         "source": raw.get("source"),
     }

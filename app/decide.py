@@ -255,6 +255,38 @@ def _earlier_request_for_asset(evidence: AssetEvidence) -> PriorRequest | None:
     return earliest
 
 
+def _related_requests_for_context(
+    evidence: AssetEvidence, prior: PriorRequest | None
+) -> list[dict[str, Any]]:
+    """Earlier requests for this equipment, as context for a coordinator.
+
+    Not a duplicate link: these appear in the audit so whoever picks the case up can see
+    what else is already in flight for the same equipment. Shaped like `relatedHistory`
+    entries so the audit reads the same either way.
+    """
+    if prior is None or not evidence.assetId:
+        return []
+
+    asset = evidence.assetId.upper()
+    related: list[dict[str, Any]] = []
+    for candidate in evidence.recentRequests:
+        request_id = str(candidate.get("requestId") or candidate.get("id") or "")
+        if not request_id:
+            continue
+        text = f"{candidate.get('subject', '')} {candidate.get('body', '')}".upper()
+        if asset not in text:
+            continue
+        related.append(
+            {
+                "requestId": request_id,
+                "receivedAt": str(candidate.get("receivedAt") or ""),
+                "summary": str(candidate.get("subject") or ""),
+                "status": "open_request",
+            }
+        )
+    return related
+
+
 def _response_window_hours(evidence: AssetEvidence) -> float | None:
     """The contract's response commitment, or None when there is nothing to check against."""
     hours = (evidence.agreement or {}).get("responseHours")
@@ -334,12 +366,23 @@ def _same_fault(facts: RequestFacts, evidence: AssetEvidence) -> bool | None:
     if not evidence.openWorkOrders and not facts.referencedRequests:
         return False
 
-    # A request that reports no fault cannot be a repeat of one. A coverage question or a
-    # planned-service booking is a different kind of message from a breakdown report, and
-    # an open job on the same asset does not make it a duplicate (CLAUDE.md rule 7:
-    # duplicates turn on the fault). Without this, every administrative request about an
-    # asset with an open job would be held for a duplicate check that cannot apply.
+    # A coverage question or a planned-service booking is a different kind of message
+    # from a breakdown report, and an open *job* on the same asset does not make it a
+    # duplicate (CLAUDE.md rule 7: duplicates turn on the fault). Without this, every
+    # administrative request about an asset with an open job would be held for a
+    # duplicate check that cannot apply.
+    #
+    # An earlier *request* is a different matter: two emails asking for the same
+    # quarterly service are one request made twice, which is the case this check is for.
+    # So only the open-job comparison is skipped here, never the earlier-request one.
     if facts.intent in {"coverage_question", "planned_service"} and not facts.referencedRequests:
+        # Only an affirmative "same" overrides this. A blank or unclear reading must stay
+        # `False` here: the model has no fault to compare for an administrative message,
+        # and treating "no answer" as "possible duplicate" held ordinary coverage
+        # questions behind a check that cannot apply to them.
+        assessment = str(getattr(facts, "sameFaultAsExisting", "") or "").strip().lower()
+        if assessment == "same" and evidence.recentRequests:
+            return True
         return False
 
     referenced = {r.upper() for r in facts.referencedRequests}
@@ -385,7 +428,7 @@ def _same_fault(facts: RequestFacts, evidence: AssetEvidence) -> bool | None:
     return None
 
 
-def _coverage_problem(evidence: AssetEvidence, wants_onsite: bool) -> Reason | None:
+def _coverage_problem(evidence: AssetEvidence) -> Reason | None:
     """The first coverage fault that requires account review, or None if covered."""
     agreement = evidence.agreement
     if agreement is None:
@@ -442,18 +485,78 @@ def _coverage_problem(evidence: AssetEvidence, wants_onsite: bool) -> Reason | N
             "POL-CONTRACT-002",
         )
 
-    # Remote-only conflicts only when the request actually needs someone on site.
+    return None
+
+
+def _is_remote_only(evidence: AssetEvidence) -> bool:
+    """Does the record limit this equipment to remote support?
+
+    Either side can say so and the stricter one controls (CLAUDE.md rule 5): the
+    agreement's `serviceMode` and the asset's own `coverage` are allowed to disagree.
+    """
+    agreement = evidence.agreement or {}
     mode = str(agreement.get("serviceMode") or "").lower()
-    asset_coverage = str(evidence.asset.get("coverage") or "").lower()
-    if wants_onsite and (mode == "remote_only" or asset_coverage == "remote_only"):
-        return Reason(
-            "remote_only_cannot_dispatch",
-            f"Agreement {agreement.get('contractRef')} is remote-only and does not "
-            "authorise an on-site visit",
-            "POL-CONTRACT-002",
+    asset_coverage = str((evidence.asset or {}).get("coverage") or "").lower()
+    return mode == "remote_only" or asset_coverage == "remote_only"
+
+
+def _remote_only_outcome(evidence: AssetEvidence, wants_onsite: bool) -> Decision:
+    """What a remote-only agreement allows. Never a work order, whatever the wording.
+
+    A contract limit is not conditional on how the customer phrased the request, so this
+    is decided from the record alone. The wording only changes which of the two permitted
+    outcomes applies (CLAUDE.md rule 5):
+
+      - they want remote help  -> `covered_action`; the cover is fine and there is
+        nothing for an account reviewer to decide
+      - they need someone on site -> `account_review_required`; attending needs cover
+        this agreement does not grant, which is an account decision, not ours
+
+    Previously this was a coverage *fault* gated on the model's `requiresOnsite`, so a
+    customer who said "do not send anyone" cleared the gate and the breakdown branch
+    booked a technician against a remote-only contract.
+    """
+    agreement = evidence.agreement or {}
+    contract_ref = agreement.get("contractRef")
+
+    if wants_onsite:
+        return Decision(
+            status="account_review_required",
+            reasons=[
+                Reason(
+                    "remote_only_cannot_dispatch",
+                    f"Agreement {contract_ref} is remote-only and does not authorise an "
+                    "on-site visit; attending needs an account decision first",
+                    "POL-CONTRACT-002",
+                )
+            ],
+            missingInformation=[
+                "Account decision on attending under a remote-only agreement"
+            ],
+            warnings=[
+                "Remote-only agreement: no work order created, and no visit is promised"
+            ],
         )
 
-    return None
+    return Decision(
+        status="covered_action",
+        reasons=[
+            Reason(
+                "coverage_confirmed",
+                f"Agreement {contract_ref} is active and in force at the request time",
+                "POL-CONTRACT-002",
+            ),
+            Reason(
+                "remote_support_covered",
+                f"Agreement {contract_ref} is remote-only and the request can be handled "
+                "remotely, which the agreement covers",
+                "POL-CONTRACT-002",
+            ),
+        ],
+        warnings=[
+            "Remote-only agreement: handled remotely, no work order and no site visit"
+        ],
+    )
 
 
 def decide(
@@ -653,7 +756,80 @@ def decide(
             missingInformation=["Which asset this request refers to"],
         )
 
-    # --- 4. duplicate ---------------------------------------------------
+    # --- 4. coverage ----------------------------------------------------
+    # Ahead of the duplicate check: cover that is not in force is a fact about the
+    # account, and linking such a request to an existing job buries it behind an
+    # acknowledgement that implies cover we cannot evidence (POL-CONTRACT-002,
+    # CLAUDE.md rule 5). An account question outranks a housekeeping link.
+    wants_onsite = _wants_onsite(facts, request_text)
+    problem = _coverage_problem(evidence)
+    if problem is not None:
+        return Decision(
+            status="account_review_required",
+            reasons=[problem],
+            missingInformation=["Confirmation of coverage from the account record"],
+            warnings=["Coverage could not be confirmed from the agreement record"],
+        )
+
+    # Cover is in force. A remote-only agreement stops here either way: it can never
+    # reach the breakdown branch, so it can never produce a work order.
+    if _is_remote_only(evidence):
+        return _remote_only_outcome(evidence, wants_onsite)
+
+    agreement = evidence.agreement
+    contract_ref = agreement.get("contractRef")
+    response_hours = agreement.get("responseHours")
+    covered = Reason(
+        "coverage_confirmed",
+        f"Agreement {contract_ref} is active and in force at the request time",
+        "POL-CONTRACT-002",
+    )
+
+    # --- 5. earlier work on this equipment ------------------------------
+    # A message that points back to a previous visit or job is asking someone to look at
+    # what was already done. Dispatching over the top of that is how a job gets created
+    # twice (OPS-INTAKE-003: check for the same incident first). The matching history goes
+    # to a coordinator with the case.
+    #
+    # This sits ahead of the duplicate check deliberately: a sender who says they cannot
+    # tell whether the old fault has returned has asked a question only a human can answer
+    # (CLAUDE.md rule 7: unclear which → a human decides). Linking it to the open job
+    # would answer that question for them, in the wrong direction.
+    #
+    # A reply to our own safety question is never a request to review past work, whatever
+    # the extraction says: the model sets this flag liberally on short replies.
+    if facts.refersToPreviousWork and not facts.isSafetyAnswer:
+        history = [
+            {
+                "id": h.get("id"),
+                "requestId": h.get("requestId"),
+                "summary": h.get("summary"),
+                "status": h.get("status"),
+                "openedAt": h.get("openedAt"),
+                "closedAt": h.get("closedAt"),
+            }
+            for h in evidence.assetHistory
+        ]
+        return Decision(
+            status="human_escalation_required",
+            reasons=[
+                covered,
+                Reason(
+                    "refers_to_previous_work",
+                    "The request asks about earlier work on this equipment; a coordinator "
+                    "reviews the previous jobs before anything new is raised",
+                    "OPS-INTAKE-003",
+                ),
+            ],
+            relatedHistory=history,
+            linkedWorkOrders=[str(h["id"]) for h in history if h.get("id")],
+            missingInformation=["Coordinator review of the previous work on this equipment"],
+            warnings=[
+                "Not dispatched: the request refers to earlier work that must be reviewed first"
+            ],
+        )
+
+    # --- 6. duplicate ---------------------------------------------------
     # A repeat is judged against the contract's own response window rather than an
     # invented interval: a follow-up that arrives while we are still inside the window we
     # promised is the same incident chased up, so it is linked. One that arrives after the
@@ -786,81 +962,36 @@ def decide(
             )
     # same_fault is False: a different fault, so it continues through the normal checks.
 
-    # --- 5. coverage ----------------------------------------------------
-    wants_onsite = _wants_onsite(facts, request_text)
-    problem = _coverage_problem(evidence, wants_onsite)
-    if problem is not None:
-        return Decision(
-            status="account_review_required",
-            reasons=[problem],
-            missingInformation=["Confirmation of coverage from the account record"],
-            warnings=["Coverage could not be confirmed from the agreement record"],
-        )
-
-    agreement = evidence.agreement
-    contract_ref = agreement.get("contractRef")
-    response_hours = agreement.get("responseHours")
-    covered = Reason(
-        "coverage_confirmed",
-        f"Agreement {contract_ref} is active and in force at the request time",
-        "POL-CONTRACT-002",
-    )
-
-    # --- 6. planned work and coverage questions -------------------------
+    # --- 7. planned work and coverage questions -------------------------
     if facts.intent in {"planned_service", "coverage_question"}:
         label = (
             "Planned service is scheduled, not dispatched at intake"
             if facts.intent == "planned_service"
             else "Coverage confirmed from the agreement record"
         )
+        reasons = [covered, Reason("planned_not_dispatched", label, "OPS-DISPATCH-004")]
+        warnings = ["No work order at intake; the visit is scheduled first"]
+
+        # An earlier request for the same equipment is not a duplicate of a scheduling
+        # request — but whoever schedules this needs to see it, or the same quarterly
+        # service gets booked twice (Rohan's double-booking case). Context in the audit,
+        # never a link: nothing is being held and no second job is implied.
+        related = _related_requests_for_context(evidence, prior)
+        if related:
+            references = ", ".join(r["requestId"] for r in related if r.get("requestId"))
+            warnings.append(
+                f"An earlier request for this equipment is already open ({references}); "
+                "check it before scheduling so the same visit is not booked twice"
+            )
+
         return Decision(
             status="covered_action",
-            reasons=[
-                covered,
-                Reason("planned_not_dispatched", label, "OPS-DISPATCH-004"),
-            ],
-            warnings=["No work order at intake; the visit is scheduled first"],
+            reasons=reasons,
+            relatedHistory=related,
+            warnings=warnings,
         )
 
-    # --- 6b. earlier work on this equipment -----------------------------
-    # A message that points back to a previous visit or job is asking someone to look at
-    # what was already done. Dispatching over the top of that is how a job gets created
-    # twice (OPS-INTAKE-003: check for the same incident first). The matching history goes
-    # to a coordinator with the case.
-    # A reply to our own safety question is never a request to review past work, whatever
-    # the extraction says: the model sets this flag liberally on short replies.
-    if facts.refersToPreviousWork and not facts.isSafetyAnswer:
-        history = [
-            {
-                "id": h.get("id"),
-                "requestId": h.get("requestId"),
-                "summary": h.get("summary"),
-                "status": h.get("status"),
-                "openedAt": h.get("openedAt"),
-                "closedAt": h.get("closedAt"),
-            }
-            for h in evidence.assetHistory
-        ]
-        return Decision(
-            status="human_escalation_required",
-            reasons=[
-                covered,
-                Reason(
-                    "refers_to_previous_work",
-                    "The request asks about earlier work on this equipment; a coordinator "
-                    "reviews the previous jobs before anything new is raised",
-                    "OPS-INTAKE-003",
-                ),
-            ],
-            relatedHistory=history,
-            linkedWorkOrders=[str(h["id"]) for h in history if h.get("id")],
-            missingInformation=["Coordinator review of the previous work on this equipment"],
-            warnings=[
-                "Not dispatched: the request refers to earlier work that must be reviewed first"
-            ],
-        )
-
-    # --- 7. breakdown ---------------------------------------------------
+    # --- 8. breakdown ---------------------------------------------------
     if facts.intent == "breakdown":
         # D1: for a breakdown, only qualified, available, same-city technicians count.
         candidates = [

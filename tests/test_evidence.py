@@ -245,3 +245,47 @@ async def test_token_is_sent_as_a_bearer_header_not_a_query_param() -> None:
 
     assert seen["auth"] == "Bearer test-token"
     assert "test-token" not in seen["url"]
+
+
+def test_a_summary_posted_under_payload_is_still_read() -> None:
+    """Work orders we create keep what we posted under `payload`.
+
+    Northstar promotes `summary` to the top level only for its own seeded rows. Ours
+    stay nested, so without reading `payload` the summary we send is invisible to the
+    duplicate check — which is the only reason for sending it (D-03/D-04).
+    """
+    from app.evidence import _normalise_work_order
+
+    created = {
+        "id": "bbafc236-98f9-4ada-95cd-1494354cd93e",
+        "request_id": "REQ-SUMCHK2",
+        "asset_id": "AST-401",
+        "technician_id": "TECH-02",
+        "status": "created",
+        "payload": {
+            "assetId": "AST-401",
+            "summary": "Lab UPS battery fault, offline",
+            "requestId": "REQ-SUMCHK2",
+            "technicianId": "TECH-02",
+        },
+        "source": "project",
+    }
+    normalised = _normalise_work_order(created)
+    assert normalised["summary"] == "Lab UPS battery fault, offline"
+    assert normalised["assetId"] == "AST-401"
+    assert normalised["requestId"] == "REQ-SUMCHK2"
+
+
+def test_a_top_level_summary_still_wins() -> None:
+    """Northstar's own rows are unaffected by the payload fallback."""
+    from app.evidence import _normalise_work_order
+
+    seeded = {
+        "id": "WO-9290",
+        "request_id": "REQ-8248",
+        "asset_id": "AST-302",
+        "summary": "Freezer plant 2 compressor cycling",
+        "status": "assigned",
+        "source": "operations",
+    }
+    assert _normalise_work_order(seeded)["summary"] == "Freezer plant 2 compressor cycling"

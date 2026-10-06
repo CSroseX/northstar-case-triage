@@ -102,6 +102,7 @@ async def book_work_order(
     evidence: AssetEvidence,
     request_id: str,
     event_id: str | None,
+    summary: str = "",
 ) -> BookingOutcome:
     """Create the work order for a dispatch-ready case. Never called for anything else."""
     outcome = BookingOutcome(technician=decision.recommendedTechnician)
@@ -181,6 +182,12 @@ async def book_work_order(
         "technicianId": chosen.technicianId,
         "safetyRisk": False,  # dispatch_ready is never reached with a safety signal
     }
+    # The fault this job is for, in the reporter's terms. Northstar's own work orders
+    # carry one ("Freezer plant 2 compressor cycling") and ours did not, so a later
+    # report of the same fault had a blank line to compare itself against and looked
+    # like a new problem (OPS-INTAKE-003: compare the symptoms).
+    if summary:
+        payload["summary"] = summary
 
     # 2. Write, keyed on the event id.
     try:

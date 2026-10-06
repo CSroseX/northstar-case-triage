@@ -47,6 +47,13 @@ def saved_handler(request: httpx.Request) -> httpx.Response:
         return _created_work_order(request)
 
     payload = saved(route)
+
+    # A work order created during the run is visible to later reads, as it would be
+    # against the real API. Without this a second request for the same equipment sees no
+    # open job and the duplicate check has nothing to work with.
+    if route == "work-orders" and _CREATED:
+        payload = {"results": list(payload["results"]) + list(_CREATED.values())}
+
     q = request.url.params.get("q")
     if q and route in FILTERING_ROUTES:
         needle = q.lower()
@@ -81,7 +88,9 @@ def _created_work_order(request: httpx.Request) -> httpx.Response:
         "asset_id": body.get("assetId"),
         "technician_id": body.get("technicianId"),
         "status": "assigned",
-        "summary": "Created by the triage service",
+        # Echo what was sent, like the real API: a hardcoded value here would hide
+        # whether the service supplies a summary at all.
+        "summary": body.get("summary"),
         "created_at": "2026-09-20T10:00:00.000Z",
         "source": "triage",
         "externalEventId": event_id,

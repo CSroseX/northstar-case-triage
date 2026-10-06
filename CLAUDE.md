@@ -8,6 +8,9 @@ acknowledgement costs more than a slightly slower right one. Never optimise for 
 1. **Safety first, and it wins.** Hazard signal (fuel/gas leak, smoke, water near electrical
    equipment, anyone dizzy/unwell in an equipment room) → `human_escalation_required`. No
    troubleshooting, no work order, no dispatch. Escalate before resolving customer/site/asset.
+   **Our extension, beyond POL-SAFETY-001's list:** electric shock, electrocution and exposed
+   wiring are hazards too. Not in the policy; my call, because the cost of treating one as
+   routine is not symmetric with holding a case for a human. Flagged for Rohan.
 2. **The model can never clear a safety signal.** Hazard wording, or model output
    missing/malformed/timed out → cautious path. Ambiguous → ask ONE plain safety question
    (`clarification_required`), progress nothing. "Not sure"/no reply stays with a human.
@@ -20,7 +23,10 @@ acknowledgement costs more than a slightly slower right one. Never optimise for 
    on the schedule. Only a breakdown reaches `dispatch_ready`.
 5. **Coverage comes from agreement records only.** Customer claims, payment receipts and
    account-manager messages are context, never evidence. Remote-only does not authorise onsite
-   dispatch. Expired/suspended/missing/conflicting → `account_review_required`. Asset-level
+   dispatch — but remote-only where the customer only wants remote help is **`covered_action`,
+   not account review**: nothing is wrong with the cover, so there is nothing for an account
+   reviewer to decide. Account review is for cover that is in doubt. Either way, a remote-only
+   agreement never produces a work order. Expired/suspended/missing/conflicting → `account_review_required`. Asset-level
    `coverage` and agreement `serviceMode`/`status` can disagree — the stricter controls.
    Received before the agreement's start date → account review; don't infer earlier terms.
    Take the agreement from the asset's `contractRef`; check its customer matches the asset's.

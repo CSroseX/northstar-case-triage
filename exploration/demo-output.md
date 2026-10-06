@@ -276,6 +276,7 @@ Why:
 - Agreement CON-012-A2 is active and in force at the request time _(POL-CONTRACT-002)_
 - Coverage confirmed from the agreement record _(OPS-DISPATCH-004)_
 - ⚠️ No work order at intake; the visit is scheduled first
+- ⚠️ An earlier request for this equipment is already open (REQ-V001, REQ-V005-B, REQ-V008); check it before scheduling so the same visit is not booked twice
 
 _Answered from the amendment CON-012-A2, not a base contract._
 
@@ -311,9 +312,9 @@ symptoms: _controller fault 118 on backup DG_
 **Status: `account_review_required`** (expected `account_review_required`)
 
 Why:
-- Agreement CON-083-A1 is remote-only and does not authorise an on-site visit _(POL-CONTRACT-002)_
-- Still needed: Confirmation of coverage from the account record
-- ⚠️ Coverage could not be confirmed from the agreement record
+- Agreement CON-083-A1 is remote-only and does not authorise an on-site visit; attending needs an account decision first _(POL-CONTRACT-002)_
+- Still needed: Account decision on attending under a remote-only agreement
+- ⚠️ Remote-only agreement: no work order created, and no visit is promised
 
 _Remote-only agreement does not authorise the on-site visit they asked for._
 
@@ -345,7 +346,7 @@ symptoms: _freezer stopped_
 
 Why:
 - Hazard wording present (smoke or fire) but not reported by the extraction; treated as ambiguous _(POL-SAFETY-001)_
-- Question to ask: _Is there any smoke, a burning or fuel smell, or water near the equipment, and is anyone feeling unwell?_
+- Question to ask: _Is there any smoke, a burning, fuel or gas smell, or water near the equipment, and is anyone feeling unwell?_
 - Still needed: Confirmation of whether there is an immediate hazard at the site
 - ⚠️ Nothing progresses until the safety question is answered
 

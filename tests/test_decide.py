@@ -987,3 +987,292 @@ async def test_the_safety_reply_states_the_lead_in_once() -> None:
     assert "Before we go further" not in draft
     # The question appears exactly once.
     assert draft.count("Is there any smoke") == 1
+
+
+# --- remote-only agreements (C-08) --------------------------------------
+# A remote-only agreement must never produce a work order, whatever the customer asks
+# for. CLAUDE.md rule 5. Previously this was gated on the model's `requiresOnsite`, so a
+# customer saying "do not send anyone" cleared the gate and a technician was booked.
+
+
+def _remote_only_evidence(service_mode: str = "remote_only", coverage: str = "standard") -> AssetEvidence:
+    from app.evidence import TechnicianMatch
+
+    return AssetEvidence(
+        outcome="resolved",
+        assetId="AST-901",
+        asset={"id": "AST-901", "nickname": "Dialysis backup DG", "coverage": coverage},
+        customer={"id": "CUS-083", "name": "Lotus Kidney Care"},
+        site={"id": "SITE-071", "name": "Jayanagar dialysis centre", "city": "Bengaluru"},
+        agreement={
+            "contractRef": "CON-083-A1",
+            "status": "active",
+            "serviceMode": service_mode,
+            "responseHours": 2,
+            "inForceAtReceivedAt": True,
+            "customerMatchesAsset": True,
+        },
+        qualifiedTechnicians=[
+            TechnicianMatch(
+                technicianId="TECH-01",
+                name="A Tech",
+                city="Bengaluru",
+                skills=["generator"],
+                certifications=["hv"],
+                available=True,
+                sameCityAsSite=True,
+            )
+        ],
+    )
+
+
+async def test_remote_only_with_a_remote_request_is_covered_not_account_review() -> None:
+    """Nothing is wrong with the cover, so there is nothing for an account reviewer."""
+    facts = RequestFacts(
+        assetMentions=["AST-901"],
+        safetySignal="denied",
+        safetyQuote="There is no smoke, no smell and nobody is at risk.",
+        intent="breakdown",
+        symptomSummary="controller fault 118 again",
+        requiresOnsite=False,
+    )
+    result = decide(
+        facts,
+        _remote_only_evidence(),
+        "Dialysis backup DG AST-901 controller fault 118. Please do not send anyone to "
+        "site - our engineer just needs talking through the reset over the phone. There "
+        "is no smoke, no smell and nobody is at risk.",
+    )
+
+    assert result.status == "covered_action"
+    assert any(r.code == "remote_support_covered" for r in result.reasons)
+    # The thing that actually went wrong: a technician was booked.
+    assert result.recommendedTechnician is None
+
+
+async def test_remote_only_needing_onsite_goes_to_account_review() -> None:
+    """Attending needs cover this agreement does not grant: an account decision."""
+    facts = RequestFacts(
+        assetMentions=["AST-901"],
+        safetySignal="denied",
+        safetyQuote="no smoke",
+        intent="breakdown",
+        symptomSummary="unit completely dead",
+        requiresOnsite=True,
+    )
+    result = decide(facts, _remote_only_evidence(), "AST-901 is dead, send an engineer. no smoke")
+
+    assert result.status == "account_review_required"
+    assert any(r.code == "remote_only_cannot_dispatch" for r in result.reasons)
+    assert result.recommendedTechnician is None
+
+
+async def test_remote_only_never_dispatches_however_the_request_is_worded() -> None:
+    """The contract limit does not depend on the customer's phrasing.
+
+    This is the regression that matters: whatever combination of wording and extracted
+    `requiresOnsite` arrives, a remote-only agreement cannot reach `dispatch_ready`.
+    """
+    bodies = [
+        ("Please do not send anyone, phone help only. no smoke", False),
+        ("Send an engineer today please. no smoke", True),
+        ("AST-901 has stopped working. no smoke", None),
+        ("Need someone on site urgently, production is down. no smoke", True),
+    ]
+    for body, requires_onsite in bodies:
+        facts = RequestFacts(
+            assetMentions=["AST-901"],
+            safetySignal="denied",
+            safetyQuote="no smoke",
+            intent="breakdown",
+            symptomSummary="stopped working",
+            requiresOnsite=requires_onsite,
+        )
+        result = decide(facts, _remote_only_evidence(), body)
+        assert result.status != "dispatch_ready", body
+        assert result.recommendedTechnician is None, body
+
+
+async def test_asset_level_remote_only_also_blocks_dispatch() -> None:
+    """The stricter of agreement serviceMode and asset coverage controls (rule 5)."""
+    facts = RequestFacts(
+        assetMentions=["AST-901"],
+        safetySignal="denied",
+        safetyQuote="no smoke",
+        intent="breakdown",
+        symptomSummary="stopped working",
+        requiresOnsite=True,
+    )
+    evidence = _remote_only_evidence(service_mode="onsite", coverage="remote_only")
+    result = decide(facts, evidence, "AST-901 stopped, send someone. no smoke")
+
+    assert result.status == "account_review_required"
+    assert any(r.code == "remote_only_cannot_dispatch" for r in result.reasons)
+
+
+async def test_the_remote_only_reply_promises_no_visit() -> None:
+    from app.replies import build_customer_reply
+
+    facts = RequestFacts(
+        assetMentions=["AST-901"],
+        safetySignal="denied",
+        safetyQuote="no smoke",
+        intent="breakdown",
+        symptomSummary="controller fault 118",
+        requiresOnsite=False,
+    )
+    evidence = _remote_only_evidence()
+    decision = decide(facts, evidence, "AST-901 fault, phone help only please. no smoke")
+    draft = build_customer_reply(facts, evidence, decision)
+
+    assert "remote support" in draft
+    # The old covered_action wording promised a visit the customer had declined.
+    assert "scheduling the visit" not in draft
+    assert "engineer has been assigned" not in draft
+
+
+# --- check order: coverage and previous work before duplicate -----------
+# C-01, C-04 and D-06. A duplicate link is housekeeping; an account question and a
+# "is this the old fault back?" question both outrank it.
+
+
+def _suspended_evidence() -> AssetEvidence:
+    """C-01: cover lapsed, and an open request for the same equipment."""
+    return AssetEvidence(
+        outcome="resolved",
+        assetId="AST-801",
+        asset={"id": "AST-801", "nickname": "Banquet chiller", "coverage": "suspended"},
+        customer={"id": "CUS-074", "name": "Riverbend Hotels"},
+        site={"id": "SITE-063", "name": "MG Road hotel", "city": "Bengaluru"},
+        agreement={
+            "contractRef": "CON-074",
+            "status": "suspended",
+            "serviceMode": "onsite",
+            "responseHours": 8,
+            "inForceAtReceivedAt": False,
+            "customerMatchesAsset": True,
+        },
+        receivedAt="2026-09-21T10:00:00Z",
+        recentRequests=[
+            {
+                "requestId": "REQ-8268",
+                "receivedAt": "2026-09-20T10:51:00Z",
+                "subject": "Banquet chiller inspection",
+                "body": "Please schedule an inspection for the banquet chiller AST-801.",
+            }
+        ],
+    )
+
+
+async def test_lapsed_cover_is_account_review_not_a_duplicate_link() -> None:
+    """C-01: linking it would imply cover we cannot evidence (POL-CONTRACT-002)."""
+    facts = RequestFacts(
+        assetMentions=["AST-801"],
+        safetySignal="denied",
+        safetyQuote="No smoke, water or smell.",
+        intent="planned_service",
+        symptomSummary="inspection requested before weekend event",
+        # The model read it as a repeat; coverage still comes first.
+        sameFaultAsExisting="same",
+        sameFaultReference="REQ-8268",
+    )
+    result = decide(
+        facts,
+        _suspended_evidence(),
+        "Please schedule an inspection for the banquet chiller AST-801 before this "
+        "weekend's event. Our finance team paid the renewal yesterday. No smoke, water "
+        "or smell.",
+    )
+
+    assert result.status == "account_review_required"
+    assert any(r.code in {"agreement_not_active", "asset_coverage_suspended"} for r in result.reasons)
+    # Not linked: the customer is not told we have attached this to an existing job.
+    assert result.linkedRequests == []
+
+
+async def test_a_customer_who_cannot_tell_gets_a_human_not_a_duplicate_link() -> None:
+    """D-06: "I am not sure whether this is the same fault" is rule 7's unclear case."""
+    evidence = AssetEvidence(
+        outcome="resolved",
+        assetId="AST-1201",
+        asset={"id": "AST-1201", "nickname": "Press line compressor", "coverage": "standard"},
+        customer={"id": "CUS-117"},
+        site={"id": "SITE-105", "name": "Rajajinagar packaging plant", "city": "Bengaluru"},
+        agreement={
+            "contractRef": "CON-117",
+            "status": "active",
+            "serviceMode": "onsite",
+            "responseHours": 12,
+            "inForceAtReceivedAt": True,
+            "customerMatchesAsset": True,
+        },
+        openWorkOrders=[{"id": "WO-8876", "requestId": "REQ-8283", "summary": "pressure oscillating"}],
+        assetHistory=[{"id": "WO-8876", "requestId": "REQ-8283", "summary": "pressure oscillating"}],
+    )
+    facts = RequestFacts(
+        assetMentions=["AST-1201"],
+        safetySignal="denied",
+        safetyQuote="No smoke, water or smell.",
+        intent="breakdown",
+        symptomSummary="pressure oscillating during long runs",
+        sameFaultAsExisting="same",
+        sameFaultReference="REQ-8283",
+        refersToPreviousWork=True,
+    )
+    result = decide(
+        facts,
+        evidence,
+        "AST-1201 pressure is oscillating again during long runs. Please compare with "
+        "the July work order - I am not sure whether this is the same fault coming back "
+        "or something new. No smoke, water or smell.",
+    )
+
+    assert result.status == "human_escalation_required"
+    assert any(r.code == "refers_to_previous_work" for r in result.reasons)
+
+
+async def test_a_pending_service_request_is_context_not_a_duplicate() -> None:
+    """C-04: covered_action, with the earlier request visible to whoever schedules it."""
+    evidence = AssetEvidence(
+        outcome="resolved",
+        assetId="AST-1302",
+        asset={"id": "AST-1302", "nickname": "Auditorium chiller", "coverage": "premium"},
+        customer={"id": "CUS-129"},
+        site={"id": "SITE-116", "name": "Koramangala campus", "city": "Bengaluru"},
+        agreement={
+            "contractRef": "CON-129-A1",
+            "status": "active",
+            "serviceMode": "onsite",
+            "responseHours": 6,
+            "inForceAtReceivedAt": True,
+            "customerMatchesAsset": True,
+        },
+        receivedAt="2026-09-20T18:45:00Z",
+        recentRequests=[
+            {
+                "requestId": "REQ-8287",
+                "receivedAt": "2026-09-20T12:08:00Z",
+                "subject": "Auditorium chiller service",
+                "body": "Please plan the quarterly service for auditorium chiller AST-1302.",
+            }
+        ],
+    )
+    facts = RequestFacts(
+        assetMentions=["AST-1302"],
+        safetySignal="absent",
+        intent="planned_service",
+        symptomSummary="quarterly service due",
+    )
+    result = decide(
+        facts,
+        evidence,
+        "Please plan the quarterly service for auditorium chiller AST-1302 next week "
+        "under amendment CON-129-A1. Nothing is wrong with it - this is the scheduled visit.",
+    )
+
+    assert result.status == "covered_action"
+    # The pending request is surfaced as context so the same visit is not booked twice.
+    assert any(h.get("requestId") == "REQ-8287" for h in result.relatedHistory)
+    assert any("REQ-8287" in w for w in result.warnings)
+    # Context, not a link.
+    assert result.linkedRequests == []

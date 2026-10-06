@@ -481,3 +481,499 @@ async def test_a_non_request_reply_omits_the_issue_line() -> None:
     assert "which equipment or service you need help with" in draft
     # The three-line shape still holds for everything that does describe an issue.
     assert draft.startswith("We've received your request.")
+
+
+# --- identifier spellings (X-14) ----------------------------------------
+# A customer copies an id off a sticker, out of a portal, or from memory. Requiring the
+# canonical spelling meant asking someone with a failed unit to name equipment they had
+# already identified twice. SYS-CATALOG-001, CLAUDE.md rule 6.
+
+
+def test_asset_ids_are_matched_whatever_the_spelling() -> None:
+    for text in ("AST-1202", "ast-1202", "AST 1202", "AST1202", "ast 1202", "AST_1202"):
+        assert find_equipment_ids(text) == ["AST-1202"], text
+
+
+def test_mixed_spellings_of_one_id_are_one_asset() -> None:
+    """X-14's actual message named it two ways; that is one asset, not two."""
+    found = find_equipment_ids(
+        "The label reads AST 1202 (the sticker has a space in it) and our portal shows "
+        "it as ast-1202."
+    )
+    assert found == ["AST-1202"]
+
+
+def test_prose_is_not_mistaken_for_an_asset_id() -> None:
+    """The looser matching must not turn ordinary words into equipment.
+
+    "Unit 4" and "AHU 2" read like ids but are prose. Without this guard the first bogus
+    id would drive the whole lookup, because asset_id is taken from the first match.
+    """
+    for text in ("Unit 4 stopped", "Line 3 is down", "Bay 2 chiller", "Room 5", "AHU 2 stopped"):
+        assert find_equipment_ids(text) == [], text
+    # A real id alongside prose still resolves, and only the real one.
+    assert find_equipment_ids("Please check Unit 12 and AST-1001") == ["AST-1001"]
+
+
+def test_an_explicit_hyphen_is_enough_for_an_unknown_prefix() -> None:
+    """cmp-77 is clearly an identifier; "unit 77" is not."""
+    assert find_equipment_ids("cmp-77 is faulty") == ["CMP-77"]
+    assert find_equipment_ids("unit 77 is faulty") == []
+
+
+def test_the_model_asset_id_counts_only_if_it_is_in_the_message() -> None:
+    """The fallback must not let the model name an asset from the records it was shown."""
+    from app.identifiers import id_appears_in_text
+
+    message = "The ink store AC label reads AST 1202 and the portal shows ast-1202."
+    assert id_appears_in_text("AST-1202", message)
+    # An id the model could only have taken from the records it was shown.
+    assert not id_appears_in_text("AST-1001", message)
+    assert not id_appears_in_text("", message)
+
+
+# --- attachment summaries reach the model and the backstop (S-11) -------
+
+
+def test_attachment_summaries_are_in_the_model_prompt() -> None:
+    """A hazard described only in a photo summary must be visible to the model."""
+    from app.model_client import build_user_prompt
+
+    prompt = build_user_prompt(
+        subject="Routine photo upload for packing hall AC",
+        body="Uploading this week's inspection photo. Nothing urgent.",
+        attachments=[
+            {
+                "id": "ATT-S11",
+                "name": "inspection-photo.jpg",
+                "type": "image",
+                "summary": (
+                    "A pool of water has spread under the AC unit and reaches the base "
+                    "of the open electrical panel beside it."
+                ),
+            }
+        ],
+    )
+
+    assert "open electrical panel" in prompt
+    assert "ATTACHMENTS ON THIS REQUEST" in prompt
+    # And it is framed as the customer's report, not as metadata.
+    assert "part of the customer's report" in prompt
+
+
+def test_an_attachment_without_a_summary_adds_nothing() -> None:
+    from app.model_client import build_user_prompt
+
+    prompt = build_user_prompt(
+        subject="S",
+        body="B",
+        attachments=[{"id": "ATT-1", "name": "photo.jpg", "type": "image"}],
+    )
+    assert "ATTACHMENTS ON THIS REQUEST" not in prompt
+
+
+async def test_a_hazard_only_in_an_attachment_is_not_treated_as_routine() -> None:
+    """S-11 end to end: the keyword backstop sees the attachment even if the model does not.
+
+    The model payload here deliberately reports no hazard — this is the case where the
+    extraction misses it, and the backstop is the only thing standing between a hazard
+    and a routine acknowledgement (POL-SAFETY-001).
+
+    The outcome is the safety question, not an escalation: hazard wording with no signal
+    from the sender is CLAUDE.md rule 2's ambiguous case, so we ask and progress nothing.
+    What must never happen is the original S-11 result — covered_action, safetyRisk
+    false, the water and the open panel never mentioned again.
+    """
+    payload = {
+        "assetMentions": ["AST-501"],
+        "safetySignal": "absent",
+        "safetyQuote": "",
+        "intent": "planned_service",
+        "symptomSummary": "routine inspection photo upload",
+        "referencedRequests": [],
+        "requiresOnsite": False,
+        "sameFaultAsExisting": "different",
+        "sameFaultReference": "",
+        "refersToPreviousWork": False,
+        "isSafetyAnswer": False,
+        "safetyAnswerUncertain": False,
+    }
+    http = httpx.AsyncClient(transport=httpx.MockTransport(_routed_handler(payload)))
+    settings = offline_settings()
+    async with http:
+        northstar = NorthstarClient(settings, client=http, attempts=1, backoff_seconds=0.0)
+        model = ModelClient(settings, client=http, cache_dir="")
+        result = await process_case(
+            CaseInput(
+                requestId="STRESS-S11",
+                receivedAt="2026-09-21T09:10:00Z",
+                channel="portal",
+                sender={"name": "R Patil", "email": "storeops@example.in"},
+                subject="Routine photo upload for packing hall AC",
+                body="Uploading this week's inspection photo for AST-501. Nothing urgent.",
+                attachments=[
+                    {
+                        "id": "ATT-S11",
+                        "name": "inspection-photo.jpg",
+                        "type": "image",
+                        "summary": (
+                            "A pool of water has spread under the AC unit and reaches "
+                            "the base of the open electrical panel beside it. Two staff "
+                            "are standing in the water."
+                        ),
+                    }
+                ],
+            ),
+            northstar,
+            model,
+            event_id="evt-s11",
+        )
+
+    assert result.status == "clarification_required"
+    assert result.status != "covered_action"
+    assert result.workOrder is None
+    # The safety question is what is being asked, and nothing has progressed.
+    assert "smoke" in result.customerResponseDraft
+    assert any("safety" in m.lower() or "hazard" in m.lower() for m in result.missingInformation)
+
+
+async def test_an_attachment_cannot_redirect_the_case_to_another_asset() -> None:
+    """Summaries feed the hazard check, not identity: they are written by whoever
+    processed the file and may name other equipment in passing."""
+    payload = dict(_facts_payload(_case_by_id("VIS-001")))
+    http = httpx.AsyncClient(transport=httpx.MockTransport(_routed_handler(payload)))
+    settings = offline_settings()
+    async with http:
+        northstar = NorthstarClient(settings, client=http, attempts=1, backoff_seconds=0.0)
+        model = ModelClient(settings, client=http, cache_dir="")
+        result = await process_case(
+            CaseInput(
+                requestId="ATT-REDIRECT",
+                receivedAt="2026-09-20T08:42:00Z",
+                channel="email",
+                sender={"name": "T", "email": "t@example.com"},
+                subject="Main DG scheduled service",
+                body="Please arrange the quarterly service. The label reads AST-101.",
+                attachments=[
+                    {
+                        "id": "ATT-X",
+                        "name": "sheet.pdf",
+                        "type": "document",
+                        "summary": "Service sheet also listing AST-302 and AST-402.",
+                    }
+                ],
+            ),
+            northstar,
+            model,
+            event_id="evt-att-redirect",
+        )
+
+    assert result.entities.assetId == "AST-101"
+
+
+def _case_by_id(case_id: str) -> Case:
+    for case in ALL_CASES:
+        if case.id == case_id:
+            return case
+    raise KeyError(case_id)
+
+
+async def test_an_attachment_hazard_the_model_reports_escalates() -> None:
+    """With the summary in the prompt the model can report it, and then it escalates.
+
+    The quote comes from the attachment, so this also proves the verbatim check accepts
+    a quote taken from a summary — `request_text` includes them (POL-SAFETY-001).
+    """
+    quote = (
+        "A pool of water has spread under the AC unit and reaches the base of the open "
+        "electrical panel beside it."
+    )
+    payload = {
+        "assetMentions": ["AST-501"],
+        "safetySignal": "affirmed",
+        "safetyQuote": quote,
+        "intent": "planned_service",
+        "symptomSummary": "water reaching an open electrical panel",
+        "referencedRequests": [],
+        "requiresOnsite": True,
+        "sameFaultAsExisting": "",
+        "sameFaultReference": "",
+        "refersToPreviousWork": False,
+        "isSafetyAnswer": False,
+        "safetyAnswerUncertain": False,
+    }
+    http = httpx.AsyncClient(transport=httpx.MockTransport(_routed_handler(payload)))
+    settings = offline_settings()
+    async with http:
+        northstar = NorthstarClient(settings, client=http, attempts=1, backoff_seconds=0.0)
+        model = ModelClient(settings, client=http, cache_dir="")
+        result = await process_case(
+            CaseInput(
+                requestId="STRESS-S11B",
+                receivedAt="2026-09-21T09:10:00Z",
+                channel="portal",
+                sender={"name": "R Patil", "email": "storeops@example.in"},
+                subject="Routine photo upload for packing hall AC",
+                body="Uploading this week's inspection photo for AST-501. Nothing urgent.",
+                attachments=[
+                    {"id": "ATT-S11", "name": "photo.jpg", "type": "image", "summary": quote}
+                ],
+            ),
+            northstar,
+            model,
+            event_id="evt-s11b",
+        )
+
+    assert result.status == "human_escalation_required"
+    assert result.classification.safetyRisk is True
+    assert result.workOrder is None
+    # The sender's own words are kept, even though they came from the attachment.
+    assert "open electrical panel" in result.customerResponseDraft
+
+
+# --- work orders we create carry a summary (D-03/D-04) ------------------
+
+
+async def test_a_created_work_order_carries_a_summary() -> None:
+    """Northstar's own jobs carry one; ours were null, so a later report of the same
+    fault had a blank line to compare itself against."""
+    reset_created_work_orders()
+    case = _case_by_id("VIS-006")
+    result = await _run(case)
+
+    assert result.status == "dispatch_ready"
+    created = list(created_work_orders().values())
+    assert len(created) == 1
+    summary = created[0]["summary"]
+    assert summary, "a work order with no summary is invisible to the duplicate check"
+    # The equipment and the fault, like "Freezer plant 2 compressor cycling".
+    assert "stopped cooling" in summary.lower()
+
+
+async def test_the_work_order_summary_survives_a_missing_nickname() -> None:
+    from app.evidence import AssetEvidence
+    from app.facts import RequestFacts
+    from app.pipeline import _work_order_summary
+
+    facts = RequestFacts(symptomSummary="stopped cooling")
+    assert _work_order_summary(facts, AssetEvidence(outcome="no_asset_id")) == "Stopped cooling"
+    # And nothing to say is an empty summary, not a stray capital.
+    assert _work_order_summary(RequestFacts(), AssetEvidence(outcome="no_asset_id")) == ""
+
+
+# --- our own handled requests are shown to the model (D-03/D-04) --------
+
+
+async def test_requests_we_handled_are_offered_to_the_next_one() -> None:
+    """D-01 was sent to us, so it is not in Northstar's queue. Without this the second
+    report of the same fault sees "no earlier requests" and becomes a second job."""
+    from app.model_client import build_user_prompt
+    from app.pipeline import HandledRequests
+
+    store = HandledRequests()
+    store.record(
+        "AST-1001",
+        CaseInput(
+            requestId="STRESS-D01",
+            receivedAt="2026-09-20T17:10:00Z",
+            channel="portal",
+            sender={"name": "Amit", "email": "a@example.com"},
+            subject="Sortation hall AHU 2 stopped",
+            body="AST-1001 has stopped cooling at the Nelamangala centre.",
+            attachments=[],
+        ),
+    )
+
+    ours = store.for_asset("AST-1001", exclude_request_id="STRESS-D03")
+    assert [r["requestId"] for r in ours] == ["STRESS-D01"]
+    # Case-insensitive, and the current request never compares against itself.
+    assert store.for_asset("ast-1001", exclude_request_id="STRESS-D01") == []
+
+    # And it reaches the model in the form it reads earlier requests in.
+    prompt = build_user_prompt("S", "B", recent_requests=ours)
+    assert "EARLIER REQUESTS FOR THIS EQUIPMENT" in prompt
+    assert "STRESS-D01" in prompt
+    assert "stopped cooling" in prompt
+
+
+async def test_the_handled_store_ignores_cases_with_no_asset() -> None:
+    from app.pipeline import HandledRequests
+
+    store = HandledRequests()
+    case = CaseInput(
+        requestId="NO-ASSET",
+        receivedAt="2026-09-20T17:10:00Z",
+        channel="email",
+        sender={"name": "T", "email": "t@example.com"},
+        subject="S",
+        body="B",
+        attachments=[],
+    )
+    store.record(None, case)
+    assert store.for_asset(None) == []
+    # Recording the same request twice keeps one entry.
+    store.record("AST-1", case)
+    store.record("AST-1", case)
+    assert len(store.for_asset("AST-1")) == 1
+
+
+# --- a reference only counts if the customer wrote it (C-01/C-04) -------
+
+
+def test_uncited_references_are_dropped() -> None:
+    """The model sees the records we show it; ids recalled from those are not citations."""
+    from app.facts import RequestFacts
+    from app.pipeline import keep_cited_references
+
+    facts = RequestFacts(referencedRequests=["REQ-8268"])
+    message = "Please schedule an inspection for the banquet chiller AST-801."
+    assert keep_cited_references(facts, message).referencedRequests == []
+
+
+def test_cited_references_are_kept_in_any_spelling() -> None:
+    from app.facts import RequestFacts
+    from app.pipeline import keep_cited_references
+
+    facts = RequestFacts(referencedRequests=["REQ-8268"])
+    for message in ("Following up on REQ-8268.", "about req 8268 again", "see req-8268"):
+        assert keep_cited_references(facts, message).referencedRequests == ["REQ-8268"], message
+
+
+def test_only_the_uncited_references_are_dropped() -> None:
+    from app.facts import RequestFacts
+    from app.pipeline import keep_cited_references
+
+    facts = RequestFacts(referencedRequests=["REQ-8268", "WO-9294"])
+    kept = keep_cited_references(facts, "This follows WO-9294.").referencedRequests
+    assert kept == ["WO-9294"]
+
+
+# --- response hours are withheld when cover was not in force (C-03) -----
+
+
+async def test_response_hours_are_withheld_when_the_agreement_was_not_in_force() -> None:
+    """A commitment from an agreement that had not started is not a commitment."""
+    payload = {
+        "assetMentions": ["AST-102"],
+        "safetySignal": "denied",
+        "safetyQuote": "No smoke, water or unusual smell, and nobody is at risk.",
+        "intent": "breakdown",
+        "symptomSummary": "not holding temperature",
+        "referencedRequests": [],
+        "requiresOnsite": True,
+        "sameFaultAsExisting": "",
+        "sameFaultReference": "",
+        "refersToPreviousWork": False,
+        "isSafetyAnswer": False,
+        "safetyAnswerUncertain": False,
+    }
+    http = httpx.AsyncClient(transport=httpx.MockTransport(_routed_handler(payload)))
+    settings = offline_settings()
+    async with http:
+        northstar = NorthstarClient(settings, client=http, attempts=1, backoff_seconds=0.0)
+        model = ModelClient(settings, client=http, cache_dir="")
+        result = await process_case(
+            CaseInput(
+                requestId="STRESS-C03",
+                # Before CON-012-A2 starts on 2026-08-12.
+                receivedAt="2026-08-01T09:00:00Z",
+                channel="portal",
+                sender={"name": "T", "email": "t@example.com"},
+                subject="Cold room not holding temperature",
+                body=(
+                    "Cold room unit AST-102 at our Whitefield warehouse has stopped "
+                    "holding temperature. No smoke, water or unusual smell, and nobody "
+                    "is at risk."
+                ),
+                attachments=[],
+            ),
+            northstar,
+            model,
+            event_id="evt-c03",
+        )
+
+    assert result.status == "account_review_required"
+    agreement_evidence = [
+        e for e in result.entitlement.evidence if isinstance(e, dict) and e.get("type") == "agreement"
+    ]
+    assert agreement_evidence, "the agreement should still be cited as evidence"
+    entry = agreement_evidence[0]
+    assert entry["inForceAtReceivedAt"] is False
+    assert entry["responseHours"] is None
+    assert entry["responseHoursWithheld"]
+    assert result.entitlement.sla == "not_applicable"
+
+
+async def test_a_repeat_of_a_request_we_handled_is_linked_not_escalated() -> None:
+    """The window rule must see the same priors the model does.
+
+    AST-102 deliberately: no request in Northstar's queue names it, so the earlier report
+    can only come from our own store. Feeding the model a prior that `recentRequests`
+    does not carry produced "same fault, but no response window to judge the timing
+    against" — an escalation on a contract that plainly has a 4-hour window.
+    """
+    from app.pipeline import handled_requests
+
+    def _payload(same_fault: str, reference: str = "") -> dict[str, Any]:
+        return {
+            "assetMentions": ["AST-102"],
+            "safetySignal": "denied",
+            "safetyQuote": "There is no smoke, water or unusual smell.",
+            "intent": "breakdown",
+            "symptomSummary": "stopped cooling",
+            "referencedRequests": [],
+            "requiresOnsite": True,
+            "sameFaultAsExisting": same_fault,
+            "sameFaultReference": reference,
+            "refersToPreviousWork": False,
+            "isSafetyAnswer": False,
+            "safetyAnswerUncertain": False,
+        }
+
+    body = (
+        "Cold room unit AST-102 at our Whitefield warehouse has stopped holding "
+        "temperature. There is no smoke, water or unusual smell."
+    )
+
+    def _case(request_id: str, received_at: str) -> CaseInput:
+        return CaseInput(
+            requestId=request_id,
+            receivedAt=received_at,
+            channel="portal",
+            sender={"name": "D K", "email": "ops@example.in"},
+            subject="Cold room not holding temperature",
+            body=body,
+            attachments=[],
+        )
+
+    reset_created_work_orders()
+    handled_requests._by_asset.clear()
+    settings = offline_settings()
+
+    # Nothing to compare against on the first report; the repeat matches it.
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(_routed_handler(_payload("different")))
+    ) as http:
+        first = await process_case(
+            _case("REQ-FIRST", "2026-09-20T09:31:00Z"),
+            NorthstarClient(settings, client=http, attempts=1, backoff_seconds=0.0),
+            ModelClient(settings, client=http, cache_dir=""),
+            event_id="evt-first",
+        )
+    # 40 minutes later, inside AST-102's 4-hour response window.
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(_routed_handler(_payload("same", "REQ-FIRST")))
+    ) as http:
+        second = await process_case(
+            _case("REQ-SECOND", "2026-09-20T10:11:00Z"),
+            NorthstarClient(settings, client=http, attempts=1, backoff_seconds=0.0),
+            ModelClient(settings, client=http, cache_dir=""),
+            event_id="evt-second",
+        )
+
+    assert first.status == "dispatch_ready"
+    assert second.status == "duplicate_detected", second.status
+    # Linked to our own earlier request, and no second job written.
+    assert second.workOrder is None
+    assert len(created_work_orders()) == 1
+    assert "REQ-FIRST" in json.dumps(second.decisionTrace)

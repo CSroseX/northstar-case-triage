@@ -212,6 +212,15 @@ def _next_step(
     if status == "covered_action":
         contract = (evidence.agreement or {}).get("contractRef")
         contract_text = f" under agreement {contract}" if contract else " under your agreement"
+        # Remote-only support is covered, but no visit is being arranged — promising one
+        # would contradict the agreement and, in the case this came from, the customer's
+        # own request not to send anyone.
+        if any(r.code == "remote_support_covered" for r in decision.reasons):
+            return (
+                f"This is covered{contract_text}, which provides remote support for this "
+                "equipment. One of our engineers will contact you to work through it with "
+                "you over the phone."
+            )
         if facts.intent == "coverage_question":
             window = _response_window(evidence)
             carries = f" It carries a response commitment of {window}." if window else ""

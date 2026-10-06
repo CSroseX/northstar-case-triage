@@ -60,6 +60,7 @@ CHECK_BY_REASON: dict[str, str] = {
     "agreement_not_in_force": "coverage",
     "agreement_window_unknown": "coverage",
     "remote_only_cannot_dispatch": "coverage",
+    "remote_support_covered": "coverage",
     "coverage_confirmed": "coverage",
     "planned_not_dispatched": "planned_vs_breakdown",
     "refers_to_previous_work": "previous_work",
