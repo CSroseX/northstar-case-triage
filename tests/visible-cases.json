@@ -1,0 +1,44 @@
+[
+  {
+    "id": "VIS-001",
+    "expectedStatus": "covered_action",
+    "request": { "requestId": "DEMO-1001", "receivedAt": "2026-09-18T08:42:00Z", "channel": "portal", "sender": { "name": "Anjali Rao", "email": "facilities@orionfulfilment.in" }, "subject": "Fulfilment DG B scheduled service", "body": "Please arrange the covered quarterly service for Fulfilment DG B at our Nelamangala centre. The asset label reads AST-1002.", "attachments": [] }
+  },
+  {
+    "id": "VIS-002",
+    "expectedStatus": "clarification_required",
+    "request": { "requestId": "DEMO-1002", "receivedAt": "2026-09-18T08:57:00Z", "channel": "email", "sender": { "name": "Maya Pillai", "email": "labops@saffronbiolabs.in" }, "subject": "Clean room temperature rising", "body": "The clean-room cooling at our Bommasandra laboratory is not holding temperature. I do not have the equipment number.", "attachments": [] }
+  },
+  {
+    "id": "VIS-003",
+    "expectedStatus": "human_escalation_required",
+    "request": { "requestId": "DEMO-1003", "receivedAt": "2026-09-18T09:04:00Z", "channel": "email", "sender": { "name": "Ritika Sen", "email": "admin@vistaralearning.in" }, "subject": "Smoke near campus generator", "body": "Security can see smoke from the generator enclosure at our Koramangala campus. People have been moved away.", "attachments": [] }
+  },
+  {
+    "id": "VIS-004",
+    "expectedStatus": "account_review_required",
+    "request": { "requestId": "DEMO-1004", "receivedAt": "2026-09-18T09:18:00Z", "channel": "portal", "sender": { "name": "Sunil Hegde", "email": "maintenance@metroprint.in" }, "subject": "New laminator not on agreement", "body": "Please dispatch someone for laminator LM-4. It was installed last week and does not appear in our covered equipment list.", "attachments": [] }
+  },
+  {
+    "id": "VIS-005",
+    "expectedStatus": "duplicate_detected",
+    "sequence": 2,
+    "request": { "requestId": "DEMO-1005-B", "receivedAt": "2026-09-18T09:24:00Z", "channel": "email", "sender": { "name": "Ajay Nair", "email": "shiftlead@orionfulfilment.in" }, "subject": "Following up on DEMO-1001", "body": "This email is for the same AST-1002 service request already raised through the portal as DEMO-1001. Please do not open a second job.", "attachments": [] }
+  },
+  {
+    "id": "VIS-006",
+    "expectedStatus": "dispatch_ready",
+    "request": { "requestId": "DEMO-1006", "receivedAt": "2026-09-18T09:31:00Z", "channel": "portal", "sender": { "name": "Maya Pillai", "email": "labops@saffronbiolabs.in" }, "subject": "Clean-room chiller stopped", "body": "AST-1101 at SITE-094 has stopped cooling. There is no smoke, water or unusual smell.", "attachments": [] }
+  },
+  {
+    "id": "VIS-007",
+    "expectedStatus": "resource_escalation_required",
+    "request": { "requestId": "DEMO-1007", "receivedAt": "2026-09-18T09:38:00Z", "channel": "portal", "sender": { "name": "Ritika Sen", "email": "admin@vistaralearning.in" }, "subject": "Electrical-certified technician needed", "body": "AST-1301 at the Koramangala campus needs an electrical-certified generator technician today. All matching technicians are already assigned.", "attachments": [] }
+  },
+  {
+    "id": "VIS-008",
+    "expectedStatus": "covered_action",
+    "request": { "requestId": "DEMO-1008", "receivedAt": "2026-09-18T09:46:00Z", "channel": "email", "sender": { "name": "Ritika Sen", "email": "admin@vistaralearning.in" }, "subject": "Coverage confirmation for campus DG", "body": "Please confirm coverage for AST-1301 using amendment CON-129-A1 rather than the older base agreement.", "attachments": [] }
+  }
+]
+

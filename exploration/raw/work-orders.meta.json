@@ -1,0 +1,8 @@
+{
+  "route": "work-orders",
+  "params": {},
+  "requestUrl": "https://hiring.celecolabs.com/api/assessment?route=work-orders",
+  "httpStatus": 200,
+  "durationMs": 1697,
+  "contentType": "application/json"
+}

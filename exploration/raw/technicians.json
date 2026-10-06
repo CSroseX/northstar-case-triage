@@ -1,0 +1,173 @@
+{
+  "results": [
+    {
+      "id": "TECH-01",
+      "name": "Ravi Menon",
+      "city": "Bengaluru",
+      "skills": [
+        "generator"
+      ],
+      "certifications": [
+        "fuel-systems"
+      ],
+      "available": true
+    },
+    {
+      "id": "TECH-02",
+      "name": "Neha Iyer",
+      "city": "Bengaluru",
+      "skills": [
+        "hvac"
+      ],
+      "certifications": [
+        "refrigerant"
+      ],
+      "available": true
+    },
+    {
+      "id": "TECH-03",
+      "name": "Aman Khan",
+      "city": "Bengaluru",
+      "skills": [
+        "generator",
+        "hvac"
+      ],
+      "certifications": [
+        "electrical"
+      ],
+      "available": false
+    },
+    {
+      "id": "TECH-04",
+      "name": "Priya Nair",
+      "city": "Bengaluru",
+      "skills": [
+        "ups",
+        "generator"
+      ],
+      "certifications": [
+        "electrical",
+        "high-voltage"
+      ],
+      "available": false,
+      "currentAssignment": "WO-9285"
+    },
+    {
+      "id": "TECH-05",
+      "name": "Naveen Gowda",
+      "city": "Bengaluru",
+      "skills": [
+        "compressor",
+        "hvac"
+      ],
+      "certifications": [
+        "refrigerant",
+        "compressed-air"
+      ],
+      "available": true
+    },
+    {
+      "id": "TECH-06",
+      "name": "Sanjana Rao",
+      "city": "Bengaluru",
+      "skills": [
+        "hvac"
+      ],
+      "certifications": [
+        "refrigerant"
+      ],
+      "available": false
+    },
+    {
+      "id": "TECH-07",
+      "name": "Joel Mathew",
+      "city": "Mysuru",
+      "skills": [
+        "generator",
+        "ups"
+      ],
+      "certifications": [
+        "electrical"
+      ],
+      "available": true
+    },
+    {
+      "id": "TECH-08",
+      "name": "Arun Bhat",
+      "city": "Bengaluru",
+      "skills": [
+        "generator",
+        "compressor"
+      ],
+      "certifications": [
+        "fuel-systems",
+        "compressed-air"
+      ],
+      "available": true
+    },
+    {
+      "id": "TECH-09",
+      "name": "Divya Krishnan",
+      "city": "Bengaluru",
+      "skills": [
+        "ups"
+      ],
+      "certifications": [
+        "electrical",
+        "high-voltage"
+      ],
+      "available": true
+    },
+    {
+      "id": "TECH-10",
+      "name": "Manoj Patil",
+      "city": "Bengaluru",
+      "skills": [
+        "hvac"
+      ],
+      "certifications": [
+        "refrigerant"
+      ],
+      "available": true
+    },
+    {
+      "id": "TECH-11",
+      "name": "Faiz Ahmed",
+      "city": "Bengaluru",
+      "skills": [
+        "generator"
+      ],
+      "certifications": [
+        "fuel-systems"
+      ],
+      "available": false
+    },
+    {
+      "id": "TECH-12",
+      "name": "Keerthi R",
+      "city": "Tumakuru",
+      "skills": [
+        "compressor",
+        "hvac"
+      ],
+      "certifications": [
+        "compressed-air",
+        "refrigerant"
+      ],
+      "available": true
+    },
+    {
+      "id": "TECH-13",
+      "name": "Asha Thomas",
+      "city": "Bengaluru",
+      "skills": [
+        "generator",
+        "ups"
+      ],
+      "certifications": [
+        "electrical"
+      ],
+      "available": true
+    }
+  ]
+}

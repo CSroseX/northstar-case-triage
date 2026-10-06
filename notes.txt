@@ -91,6 +91,8 @@ work orders (meera + nikhil + API ref)
 - 504 after a write = uncertain outcome. reconcile (look up by event/request ref) before retry
 - "duplicate: true" is not an error, don't retry it
 - API validates structure only, NOT business judgement. safe/covered/appropriate is on us
+API base: https://hiring.celecolabs.com/api/assessment
+Workspace: https://hiring.celecolabs.com/assessment/northstar/#token=*******
 
 lookups (nikhil + API ref)
 - separate APIs: customers (incl sites + assets), agreements, technicians, work-order-history,
@@ -101,6 +103,8 @@ lookups (nikhil + API ref)
 - reads can time out -> bounded retries w/ short backoff ok. never retry forever, never
   substitute a guess. lookup we depend on fails -> visible failure state for a coordinator
 - northstar key never goes in model prompts, logs or source control
+- search (q=) is ignored on requests and work-orders, they always return the full list. filter in our own code.
+- work-orders route uses snake_case field names (asset_id, request_id), the others use camelCase.
 
 model gateway (aditi + guide)
 - openai-compatible chat endpoint, model alias celeco-assessment-chat-v1
@@ -114,13 +118,14 @@ things noticed in the data
 --------------------------
 - search "Aster" returns 2 different customers (Aster Warehousing CUS-012, Aster Clinical
   Services CUS-019), both in whitefield. customer record has no email field -> can't identify
-  by name alone. sender domain + site + asset have to agree, otherwise uncertain identity
+  by name alone. asset ID → site → customer have to agree, otherwise uncertain identity
 - asset carries contractRef + requiredCertifications -> keys for the next lookups
 - agreement CON-012-A2: supersedes CON-012, effective 2026-08-12 to 2027-07-31, onsite,
-  4h response. amendment points back to base, base doesn't point forward. "A2" implies an A1
-  probably exists -> look at the whole agreement family, pick what's in force on receivedAt
+  4h response. amendment points back to base, base doesn't point forward. there's no A1 and no base record. Pick the one agreement valid on receivedAt
 - runner cases != visible-cases.json (different customers/assets). hidden cases will differ
   again -> nothing hardcoded to examples
+  - request before amendment's start date → account review
+  - contract comes from the equipment's own contractRef; check the customer matches.
 
 approach
 --------

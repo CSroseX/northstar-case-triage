@@ -1,0 +1,29 @@
+{
+  "id": "52092b3c-edab-45b1-97b7-b8e9800c2425",
+  "object": "chat.completion",
+  "model": "celeco-assessment-chat-v1",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"assetMentions\": [\"backup generator\"], \"siteMentions\": [\"Indiranagar centre\"], \"safetySignal\": \"affirmed\", \"safetyQuote\": \"They have kept people away from the room.\", \"intent\": \"report fuel smell and vibration near backup generator\", \"referencedRequests\": []}"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 144,
+    "completion_tokens": 68,
+    "total_tokens": 212
+  },
+  "celeco": {
+    "traceId": "52092b3c-edab-45b1-97b7-b8e9800c2425",
+    "allowance": {
+      "requests": 1,
+      "inputTokens": 141,
+      "outputTokens": 400
+    },
+    "warning": null
+  }
+}

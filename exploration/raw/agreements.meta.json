@@ -1,0 +1,8 @@
+{
+  "route": "agreements",
+  "params": {},
+  "requestUrl": "https://hiring.celecolabs.com/api/assessment?route=agreements",
+  "httpStatus": 200,
+  "durationMs": 1717,
+  "contentType": "application/json"
+}

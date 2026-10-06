@@ -1,0 +1,8 @@
+{
+  "route": "technicians",
+  "params": {},
+  "requestUrl": "https://hiring.celecolabs.com/api/assessment?route=technicians",
+  "httpStatus": 200,
+  "durationMs": 1175,
+  "contentType": "application/json"
+}

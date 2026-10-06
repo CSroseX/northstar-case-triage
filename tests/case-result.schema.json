@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://celecolabs.com/assessment/data/case-result.schema.json",
+  "title": "Northstar case result",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["caseId", "status", "entities", "classification", "entitlement", "nextActions", "customerResponseDraft", "missingInformation", "workOrder", "audit"],
+  "properties": {
+    "caseId": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["covered_action", "clarification_required", "human_escalation_required", "account_review_required", "duplicate_detected", "dispatch_ready", "resource_escalation_required", "processing", "failed"] },
+    "entities": {
+      "type": "object",
+      "required": ["customerId", "siteId", "assetId"],
+      "properties": { "customerId": { "type": ["string", "null"] }, "siteId": { "type": ["string", "null"] }, "assetId": { "type": ["string", "null"] } }
+    },
+    "classification": {
+      "type": "object",
+      "required": ["category", "urgency", "safetyRisk", "confidence"],
+      "properties": { "category": { "type": "string" }, "urgency": { "type": "string" }, "safetyRisk": { "type": "boolean" }, "confidence": { "type": "number", "minimum": 0, "maximum": 1 } }
+    },
+    "entitlement": { "type": "object", "required": ["status", "sla", "evidence"] },
+    "nextActions": { "type": "array", "items": { "type": "object", "required": ["type", "reason"] } },
+    "customerResponseDraft": { "type": "string" },
+    "missingInformation": { "type": "array", "items": { "type": "string" } },
+    "workOrder": { "type": ["object", "null"] },
+    "audit": {
+      "type": "object",
+      "required": ["sourceReferences", "modelTraceIds", "warnings"],
+      "properties": { "sourceReferences": { "type": "array" }, "modelTraceIds": { "type": "array", "items": { "type": "string" } }, "warnings": { "type": "array", "items": { "type": "string" } } }
+    }
+  }
+}
+

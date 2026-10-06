@@ -1,0 +1,337 @@
+{
+  "results": [
+    {
+      "id": "VIS-001",
+      "requestId": "REQ-V001",
+      "receivedAt": "2026-09-20T08:42:00Z",
+      "channel": "portal",
+      "priority": "normal",
+      "sender": {
+        "name": "Kavya Menon",
+        "email": "facilities@asterwarehousing.in"
+      },
+      "subject": "Main DG scheduled service",
+      "body": "Please arrange the covered quarterly service for Main DG at our Whitefield warehouse. The asset label reads AST-101. Tuesday morning is preferred.",
+      "attachments": [
+        {
+          "id": "ATT-001",
+          "name": "service-label.jpg",
+          "type": "image",
+          "summary": "Equipment label photographed on site: Northstar asset AST-101, 250 kVA diesel generator, serial NS-DG-4481."
+        }
+      ],
+      "workflow": null
+    },
+    {
+      "id": "VIS-002",
+      "requestId": "REQ-V002",
+      "receivedAt": "2026-09-20T08:57:00Z",
+      "channel": "email",
+      "priority": "high",
+      "sender": {
+        "name": "Deepa Kulkarni",
+        "email": "ops@bluepeakcoldchain.in"
+      },
+      "subject": "Hoskote freezer temperature rising",
+      "body": "The freezer plant at our Hoskote cold store is not pulling down below -12°C. I am off site and do not have the asset number. Product is still within tolerance but we need someone to look at this today.",
+      "attachments": [],
+      "workflow": null
+    },
+    {
+      "id": "VIS-003",
+      "requestId": "REQ-V003",
+      "receivedAt": "2026-09-20T09:04:00Z",
+      "channel": "email",
+      "priority": "urgent",
+      "sender": {
+        "name": "Farhan Ali",
+        "email": "admin@meridiandiagnostics.in"
+      },
+      "subject": "Fuel smell near backup generator",
+      "body": "Security reports a strong diesel smell and unusual vibration near the backup generator at our Indiranagar centre. They have kept people away from the room. Please advise urgently.",
+      "attachments": [
+        {
+          "id": "ATT-003",
+          "name": "security-photo.jpg",
+          "type": "image",
+          "summary": "Security photo taken from the doorway. The generator room is cordoned off; a dark wet patch is visible below the fuel-line side of the unit."
+        }
+      ],
+      "workflow": null
+    },
+    {
+      "id": "VIS-004",
+      "requestId": "REQ-V004",
+      "receivedAt": "2026-09-20T09:18:00Z",
+      "channel": "portal",
+      "priority": "normal",
+      "sender": {
+        "name": "Madhav Shetty",
+        "email": "maintenance@helixcomponents.in"
+      },
+      "subject": "Compressor not listed in portal",
+      "body": "Please dispatch someone for compressor CMP-77 on line 2. I cannot find it in our covered asset list, but it was installed during last month's expansion.",
+      "attachments": [
+        {
+          "id": "ATT-004",
+          "name": "commissioning-note.pdf",
+          "type": "document",
+          "summary": "Helix commissioning note dated 28 August 2026 for compressor CMP-77 on line 2. It records installation and acceptance, but contains no Northstar contract or covered-asset reference."
+        }
+      ],
+      "workflow": null
+    },
+    {
+      "id": "VIS-005",
+      "requestId": "REQ-V005-B",
+      "receivedAt": "2026-09-20T09:24:00Z",
+      "channel": "email",
+      "priority": "normal",
+      "sender": {
+        "name": "Nishant Rao",
+        "email": "warehouselead@asterwarehousing.in"
+      },
+      "subject": "Following up: Main DG service",
+      "body": "Kavya raised the Main DG service request from the portal a few minutes ago. This email is for the same AST-101 visit. Please don't create a second job.",
+      "attachments": [],
+      "workflow": null
+    },
+    {
+      "id": "VIS-006",
+      "requestId": "REQ-V006",
+      "receivedAt": "2026-09-20T09:31:00Z",
+      "channel": "portal",
+      "priority": "high",
+      "sender": {
+        "name": "Deepa Kulkarni",
+        "email": "ops@bluepeakcoldchain.in"
+      },
+      "subject": "Freezer plant 2 stopped",
+      "body": "AST-302 at SITE-021 has stopped cooling. There is no smoke, water or unusual smell. The room is at -9°C and rising.",
+      "attachments": [
+        {
+          "id": "ATT-006",
+          "name": "controller-reading.jpg",
+          "type": "image",
+          "summary": "Controller display shows -9.1°C and alarm E42 (low suction pressure). Photo timestamp: 09:29 IST."
+        }
+      ],
+      "workflow": null
+    },
+    {
+      "id": "VIS-007",
+      "requestId": "REQ-V007",
+      "receivedAt": "2026-09-20T09:38:00Z",
+      "channel": "portal",
+      "priority": "high",
+      "sender": {
+        "name": "Sushma Rao",
+        "email": "facilities@asterclinical.in"
+      },
+      "subject": "Electrical-certified technician needed",
+      "body": "AST-205 at the Whitefield clinic needs an electrical-certified generator technician today. No one is in danger and the generator remains offline.",
+      "attachments": [],
+      "workflow": null
+    },
+    {
+      "id": "VIS-008",
+      "requestId": "REQ-V008",
+      "receivedAt": "2026-09-20T09:46:00Z",
+      "channel": "email",
+      "priority": "normal",
+      "sender": {
+        "name": "Kavya Menon",
+        "email": "facilities@asterwarehousing.in"
+      },
+      "subject": "Coverage confirmation for AST-101",
+      "body": "Before the visit, please confirm coverage for AST-101 using the amendment signed in August. The older base contract does not include the revised generator schedule.",
+      "attachments": [
+        {
+          "id": "ATT-008",
+          "name": "contract-amendment-reference.txt",
+          "type": "text",
+          "summary": "Reference supplied by customer: CON-012 amendment A2, signed 12 August 2026. Customer asks Northstar to use the amended preventive-maintenance schedule."
+        }
+      ],
+      "workflow": null
+    },
+    {
+      "id": "REQ-8259",
+      "requestId": "REQ-8259",
+      "receivedAt": "2026-09-20T10:02:00Z",
+      "channel": "email",
+      "priority": "normal",
+      "sender": {
+        "name": "Pranav Joshi",
+        "email": "itops@nammadatasystems.in"
+      },
+      "subject": "CRAC 3 alarm returned",
+      "body": "The high-temperature warning on Server room CRAC 3 has returned after last week's visit. Asset AST-702. Current room temperature is stable at 22°C.",
+      "attachments": [
+        {
+          "id": "ATT-8259",
+          "name": "alarm-log.csv",
+          "type": "text",
+          "summary": "Three high-temperature warnings from CRAC 3 at 01:14, 01:22 and 01:37. Each cleared within four minutes. Sensor readings peaked at 25.8°C."
+        }
+      ],
+      "workflow": null
+    },
+    {
+      "id": "REQ-8261",
+      "requestId": "REQ-8261",
+      "receivedAt": "2026-09-20T10:17:00Z",
+      "channel": "portal",
+      "priority": "low",
+      "sender": {
+        "name": "Rashmi Patil",
+        "email": "storeops@kaverifresh.in"
+      },
+      "subject": "Packing hall AC noisy",
+      "body": "The packing hall AC has developed a rattling noise. Cooling is normal. This is AST-501 at the Yeshwanthpur hub.",
+      "attachments": [],
+      "workflow": null
+    },
+    {
+      "id": "REQ-8264",
+      "requestId": "REQ-8264",
+      "receivedAt": "2026-09-20T10:33:00Z",
+      "channel": "email",
+      "priority": "high",
+      "sender": {
+        "name": "Madhav Shetty",
+        "email": "maintenance@helixcomponents.in"
+      },
+      "subject": "Line 4 pressure falling again",
+      "body": "Line 4 compressor AST-601 is losing pressure during the second shift, similar to REQ-8120. Production has not stopped yet. Can you check the previous work and advise the next step?",
+      "attachments": [],
+      "workflow": null
+    },
+    {
+      "id": "REQ-8268",
+      "requestId": "REQ-8268",
+      "receivedAt": "2026-09-20T10:51:00Z",
+      "channel": "portal",
+      "priority": "normal",
+      "sender": {
+        "name": "Leena D'Souza",
+        "email": "engineering@riverbendhotels.in"
+      },
+      "subject": "Banquet chiller inspection",
+      "body": "Please schedule an inspection for the banquet chiller AST-801 before this weekend's event. The account portal says service is on hold, but our finance team says the renewal payment was made yesterday.",
+      "attachments": [
+        {
+          "id": "ATT-8268",
+          "name": "payment-reference.pdf",
+          "type": "document",
+          "summary": "Bank transfer advice for ₹1,84,000 dated 19 September 2026. The document references Riverbend Hotels but does not confirm that Northstar has received or allocated the payment."
+        }
+      ],
+      "workflow": null
+    },
+    {
+      "id": "REQ-8271",
+      "requestId": "REQ-8271",
+      "receivedAt": "2026-09-20T11:06:00Z",
+      "channel": "email",
+      "priority": "high",
+      "sender": {
+        "name": "Dr Nandita Bose",
+        "email": "admin@lotuskidneycare.in"
+      },
+      "subject": "Backup DG controller fault",
+      "body": "Dialysis backup DG AST-901 shows controller fault 118. There is no smoke or smell. Please arrange someone on site before the evening shift.",
+      "attachments": [],
+      "workflow": null
+    },
+    {
+      "id": "REQ-8275",
+      "requestId": "REQ-8275",
+      "receivedAt": "2026-09-20T11:19:00Z",
+      "channel": "portal",
+      "priority": "normal",
+      "sender": {
+        "name": "Anjali Rao",
+        "email": "facilities@orionfulfilment.in"
+      },
+      "subject": "AHU 2 airflow weak",
+      "body": "Sortation hall AHU 2, AST-1001, has weak airflow again. Cooling remains within range. Please review the June visit before assigning this.",
+      "attachments": [],
+      "workflow": null
+    },
+    {
+      "id": "REQ-8279",
+      "requestId": "REQ-8279",
+      "receivedAt": "2026-09-20T11:37:00Z",
+      "channel": "email",
+      "priority": "urgent",
+      "sender": {
+        "name": "Maya Pillai",
+        "email": "labops@saffronbiolabs.in"
+      },
+      "subject": "Water beside instrument UPS",
+      "body": "There is water on the floor beside instrument UPS AST-1102. The area is being kept clear and nobody has touched the equipment.",
+      "attachments": [
+        {
+          "id": "ATT-8279",
+          "name": "corridor-photo.jpg",
+          "type": "image",
+          "summary": "Photo from outside the marked area shows water extending toward the UPS cabinet."
+        }
+      ],
+      "workflow": null
+    },
+    {
+      "id": "REQ-8283",
+      "requestId": "REQ-8283",
+      "receivedAt": "2026-09-20T11:52:00Z",
+      "channel": "portal",
+      "priority": "normal",
+      "sender": {
+        "name": "Sunil Hegde",
+        "email": "maintenance@metroprint.in"
+      },
+      "subject": "Press compressor pressure oscillation",
+      "body": "AST-1201 pressure is oscillating again during long runs. Production is continuing. Please compare with the July work order.",
+      "attachments": [],
+      "workflow": null
+    },
+    {
+      "id": "REQ-8287",
+      "requestId": "REQ-8287",
+      "receivedAt": "2026-09-20T12:08:00Z",
+      "channel": "email",
+      "priority": "normal",
+      "sender": {
+        "name": "Ritika Sen",
+        "email": "admin@vistaralearning.in"
+      },
+      "subject": "Auditorium chiller service",
+      "body": "Please plan the quarterly service for auditorium chiller AST-1302 next week under amendment CON-129-A1.",
+      "attachments": [],
+      "workflow": null
+    },
+    {
+      "id": "REQ-8290",
+      "requestId": "REQ-8290",
+      "receivedAt": "2026-09-20T12:21:00Z",
+      "channel": "portal",
+      "priority": "high",
+      "sender": {
+        "name": "Amit Suri",
+        "email": "itops@orionfulfilment.in"
+      },
+      "subject": "DG B failed remote start",
+      "body": "Fulfilment DG B AST-1002 failed a remote start test. No smoke, fuel smell or water is present. The site is currently on utility power.",
+      "attachments": [
+        {
+          "id": "ATT-8290",
+          "name": "controller-log.txt",
+          "type": "text",
+          "summary": "Controller log shows start attempt rejected after low starter-voltage reading."
+        }
+      ],
+      "workflow": null
+    }
+  ]
+}

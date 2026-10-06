@@ -1,0 +1,124 @@
+{
+  "results": [
+    {
+      "id": "CON-012-A2",
+      "customerId": "CUS-012",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 4,
+      "effectiveFrom": "2026-08-12",
+      "effectiveTo": "2027-07-31",
+      "supersedes": "CON-012"
+    },
+    {
+      "id": "CON-019",
+      "customerId": "CUS-019",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 8,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "2026-12-31"
+    },
+    {
+      "id": "CON-027-A1",
+      "customerId": "CUS-027",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 4,
+      "effectiveFrom": "2026-04-15",
+      "effectiveTo": "2027-03-31"
+    },
+    {
+      "id": "CON-031",
+      "customerId": "CUS-031",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 4,
+      "effectiveFrom": "2026-01-01",
+      "effectiveTo": "2026-12-31"
+    },
+    {
+      "id": "CON-044-A3",
+      "customerId": "CUS-044",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 8,
+      "effectiveFrom": "2026-07-01",
+      "effectiveTo": "2027-06-30"
+    },
+    {
+      "id": "CON-052",
+      "customerId": "CUS-052",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 4,
+      "effectiveFrom": "2026-02-01",
+      "effectiveTo": "2027-01-31"
+    },
+    {
+      "id": "CON-067",
+      "customerId": "CUS-067",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 2,
+      "effectiveFrom": "2026-06-01",
+      "effectiveTo": "2027-05-31"
+    },
+    {
+      "id": "CON-074",
+      "customerId": "CUS-074",
+      "status": "suspended",
+      "serviceMode": "onsite",
+      "responseHours": 8,
+      "effectiveFrom": "2025-09-01",
+      "effectiveTo": "2026-08-31",
+      "note": "Renewal payment awaiting allocation."
+    },
+    {
+      "id": "CON-083-A1",
+      "customerId": "CUS-083",
+      "status": "active",
+      "serviceMode": "remote_only",
+      "responseHours": 2,
+      "effectiveFrom": "2026-07-01",
+      "effectiveTo": "2027-06-30"
+    },
+    {
+      "id": "CON-096",
+      "customerId": "CUS-096",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 8,
+      "effectiveFrom": "2026-03-01",
+      "effectiveTo": "2027-02-28"
+    },
+    {
+      "id": "CON-108",
+      "customerId": "CUS-108",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 4,
+      "effectiveFrom": "2026-05-01",
+      "effectiveTo": "2027-04-30"
+    },
+    {
+      "id": "CON-117",
+      "customerId": "CUS-117",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 12,
+      "effectiveFrom": "2026-01-15",
+      "effectiveTo": "2027-01-14"
+    },
+    {
+      "id": "CON-129-A1",
+      "customerId": "CUS-129",
+      "status": "active",
+      "serviceMode": "onsite",
+      "responseHours": 6,
+      "effectiveFrom": "2026-08-01",
+      "effectiveTo": "2027-07-31",
+      "supersedes": "CON-129"
+    }
+  ]
+}

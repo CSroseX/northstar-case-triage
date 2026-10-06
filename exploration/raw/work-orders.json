@@ -1,0 +1,52 @@
+{
+  "results": [
+    {
+      "id": "WO-9281",
+      "request_id": "REQ-8238",
+      "customer_id": "CUS-044",
+      "site_id": "SITE-037",
+      "asset_id": "AST-501",
+      "technician_id": "TECH-02",
+      "status": "technician_en_route",
+      "summary": "Packing hall AC not holding temperature",
+      "created_at": "2026-09-20T03:35:00.000Z",
+      "source": "operations"
+    },
+    {
+      "id": "WO-9285",
+      "request_id": "REQ-8242",
+      "customer_id": "CUS-031",
+      "site_id": "SITE-025",
+      "asset_id": "AST-402",
+      "technician_id": "TECH-04",
+      "status": "awaiting_site_access",
+      "summary": "Lab UPS battery warning",
+      "created_at": "2026-09-20T05:10:00.000Z",
+      "source": "operations"
+    },
+    {
+      "id": "WO-9290",
+      "request_id": "REQ-8248",
+      "customer_id": "CUS-027",
+      "site_id": "SITE-021",
+      "asset_id": "AST-302",
+      "technician_id": "TECH-05",
+      "status": "assigned",
+      "summary": "Freezer plant 2 compressor cycling",
+      "created_at": "2026-09-20T07:45:00.000Z",
+      "source": "operations"
+    },
+    {
+      "id": "WO-9294",
+      "request_id": "REQ-8254",
+      "customer_id": "CUS-012",
+      "site_id": "SITE-008",
+      "asset_id": "AST-101",
+      "technician_id": "TECH-01",
+      "status": "diagnosis_in_progress",
+      "summary": "Main DG failed remote start",
+      "created_at": "2026-09-20T09:20:00.000Z",
+      "source": "operations"
+    }
+  ]
+}

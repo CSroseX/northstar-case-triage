@@ -1,0 +1,48 @@
+{
+  "generatedAt": "2026-10-06T07:22:01.007Z",
+  "base": "https://hiring.celecolabs.com/api/assessment",
+  "calls": [
+    {
+      "route": "requests",
+      "httpStatus": 200,
+      "durationMs": 2005,
+      "resultCount": 18,
+      "error": null
+    },
+    {
+      "route": "customers",
+      "httpStatus": 200,
+      "durationMs": 1198,
+      "resultCount": 13,
+      "error": null
+    },
+    {
+      "route": "agreements",
+      "httpStatus": 200,
+      "durationMs": 1717,
+      "resultCount": 13,
+      "error": null
+    },
+    {
+      "route": "technicians",
+      "httpStatus": 200,
+      "durationMs": 1175,
+      "resultCount": 13,
+      "error": null
+    },
+    {
+      "route": "work-order-history",
+      "httpStatus": 200,
+      "durationMs": 1176,
+      "resultCount": 24,
+      "error": null
+    },
+    {
+      "route": "work-orders",
+      "httpStatus": 200,
+      "durationMs": 1697,
+      "resultCount": 4,
+      "error": null
+    }
+  ]
+}

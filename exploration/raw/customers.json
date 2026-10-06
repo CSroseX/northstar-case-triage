@@ -1,0 +1,481 @@
+{
+  "results": [
+    {
+      "id": "CUS-012",
+      "name": "Aster Warehousing",
+      "aliases": [
+        "Aster Logistics"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-008",
+          "customerId": "CUS-012",
+          "name": "Whitefield warehouse",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-101",
+              "siteId": "SITE-008",
+              "type": "generator",
+              "nickname": "Main DG",
+              "coverage": "premium",
+              "contractRef": "CON-012-A2",
+              "requiredCertifications": [
+                "fuel-systems"
+              ]
+            },
+            {
+              "id": "AST-102",
+              "siteId": "SITE-008",
+              "type": "hvac",
+              "nickname": "Cold room unit",
+              "coverage": "standard",
+              "contractRef": "CON-012-A2",
+              "requiredCertifications": [
+                "refrigerant"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-019",
+      "name": "Aster Clinical Services",
+      "aliases": [
+        "Aster Clinic"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-014",
+          "customerId": "CUS-019",
+          "name": "Whitefield clinic",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-205",
+              "siteId": "SITE-014",
+              "type": "generator",
+              "nickname": "Clinic DG",
+              "coverage": "standard",
+              "contractRef": "CON-019",
+              "requiredCertifications": [
+                "electrical",
+                "high-voltage"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-027",
+      "name": "BluePeak Cold Chain",
+      "aliases": [
+        "BluePeak Foods"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-021",
+          "customerId": "CUS-027",
+          "name": "Hoskote cold store",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-301",
+              "siteId": "SITE-021",
+              "type": "generator",
+              "nickname": "Yard DG",
+              "coverage": "premium",
+              "contractRef": "CON-027-A1",
+              "requiredCertifications": [
+                "fuel-systems"
+              ]
+            },
+            {
+              "id": "AST-302",
+              "siteId": "SITE-021",
+              "type": "hvac",
+              "nickname": "Freezer plant 2",
+              "coverage": "premium",
+              "contractRef": "CON-027-A1",
+              "requiredCertifications": [
+                "refrigerant"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-031",
+      "name": "Meridian Diagnostics",
+      "aliases": [
+        "Meridian Labs"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-025",
+          "customerId": "CUS-031",
+          "name": "Indiranagar diagnostic centre",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-401",
+              "siteId": "SITE-025",
+              "type": "hvac",
+              "nickname": "MRI chiller",
+              "coverage": "premium",
+              "contractRef": "CON-031",
+              "requiredCertifications": [
+                "refrigerant"
+              ]
+            },
+            {
+              "id": "AST-402",
+              "siteId": "SITE-025",
+              "type": "ups",
+              "nickname": "Lab UPS",
+              "coverage": "standard",
+              "contractRef": "CON-031",
+              "requiredCertifications": [
+                "electrical"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-044",
+      "name": "Kaveri Retail Foods",
+      "aliases": [
+        "Kaveri Fresh"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-037",
+          "customerId": "CUS-044",
+          "name": "Yeshwanthpur fulfilment hub",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-501",
+              "siteId": "SITE-037",
+              "type": "hvac",
+              "nickname": "Packing hall AC",
+              "coverage": "standard",
+              "contractRef": "CON-044-A3",
+              "requiredCertifications": [
+                "refrigerant"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-052",
+      "name": "Helix Components",
+      "aliases": [
+        "Helix Auto"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-043",
+          "customerId": "CUS-052",
+          "name": "Peenya manufacturing unit",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-601",
+              "siteId": "SITE-043",
+              "type": "compressor",
+              "nickname": "Line 4 compressor",
+              "coverage": "premium",
+              "contractRef": "CON-052",
+              "requiredCertifications": [
+                "compressed-air"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-067",
+      "name": "Namma Data Systems",
+      "aliases": [
+        "NDS"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-054",
+          "customerId": "CUS-067",
+          "name": "Electronic City data centre",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-701",
+              "siteId": "SITE-054",
+              "type": "generator",
+              "nickname": "DC backup A",
+              "coverage": "premium",
+              "contractRef": "CON-067",
+              "requiredCertifications": [
+                "electrical"
+              ]
+            },
+            {
+              "id": "AST-702",
+              "siteId": "SITE-054",
+              "type": "hvac",
+              "nickname": "Server room CRAC 3",
+              "coverage": "premium",
+              "contractRef": "CON-067",
+              "requiredCertifications": [
+                "refrigerant"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-074",
+      "name": "Riverbend Hotels",
+      "aliases": [
+        "Riverbend Bengaluru"
+      ],
+      "status": "on_hold",
+      "sites": [
+        {
+          "id": "SITE-063",
+          "customerId": "CUS-074",
+          "name": "MG Road hotel",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-801",
+              "siteId": "SITE-063",
+              "type": "hvac",
+              "nickname": "Banquet chiller",
+              "coverage": "suspended",
+              "contractRef": "CON-074",
+              "requiredCertifications": [
+                "refrigerant"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-083",
+      "name": "Lotus Kidney Care",
+      "aliases": [
+        "Lotus Dialysis"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-071",
+          "customerId": "CUS-083",
+          "name": "Jayanagar dialysis centre",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-901",
+              "siteId": "SITE-071",
+              "type": "generator",
+              "nickname": "Dialysis backup DG",
+              "coverage": "remote_only",
+              "contractRef": "CON-083-A1",
+              "requiredCertifications": [
+                "fuel-systems"
+              ]
+            },
+            {
+              "id": "AST-902",
+              "siteId": "SITE-071",
+              "type": "ups",
+              "nickname": "Treatment floor UPS",
+              "coverage": "premium",
+              "contractRef": "CON-083-A1",
+              "requiredCertifications": [
+                "electrical"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-096",
+      "name": "Orion E-commerce Services",
+      "aliases": [
+        "Orion Fulfilment"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-082",
+          "customerId": "CUS-096",
+          "name": "Nelamangala fulfilment centre",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-1001",
+              "siteId": "SITE-082",
+              "type": "hvac",
+              "nickname": "Sortation hall AHU 2",
+              "coverage": "standard",
+              "contractRef": "CON-096",
+              "requiredCertifications": [
+                "refrigerant"
+              ]
+            },
+            {
+              "id": "AST-1002",
+              "siteId": "SITE-082",
+              "type": "generator",
+              "nickname": "Fulfilment DG B",
+              "coverage": "standard",
+              "contractRef": "CON-096",
+              "requiredCertifications": [
+                "fuel-systems"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-108",
+      "name": "Saffron BioLabs",
+      "aliases": [
+        "Saffron Labs"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-094",
+          "customerId": "CUS-108",
+          "name": "Bommasandra laboratory",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-1101",
+              "siteId": "SITE-094",
+              "type": "hvac",
+              "nickname": "Clean-room chiller",
+              "coverage": "premium",
+              "contractRef": "CON-108",
+              "requiredCertifications": [
+                "refrigerant"
+              ]
+            },
+            {
+              "id": "AST-1102",
+              "siteId": "SITE-094",
+              "type": "ups",
+              "nickname": "Instrument UPS",
+              "coverage": "premium",
+              "contractRef": "CON-108",
+              "requiredCertifications": [
+                "electrical"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-117",
+      "name": "MetroPrint Packaging",
+      "aliases": [
+        "MetroPrint"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-105",
+          "customerId": "CUS-117",
+          "name": "Rajajinagar packaging plant",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-1201",
+              "siteId": "SITE-105",
+              "type": "compressor",
+              "nickname": "Press line compressor",
+              "coverage": "standard",
+              "contractRef": "CON-117",
+              "requiredCertifications": [
+                "compressed-air"
+              ]
+            },
+            {
+              "id": "AST-1202",
+              "siteId": "SITE-105",
+              "type": "hvac",
+              "nickname": "Ink store AC",
+              "coverage": "standard",
+              "contractRef": "CON-117",
+              "requiredCertifications": [
+                "refrigerant"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CUS-129",
+      "name": "Vistara Learning Centres",
+      "aliases": [
+        "Vistara Schools"
+      ],
+      "status": "active",
+      "sites": [
+        {
+          "id": "SITE-116",
+          "customerId": "CUS-129",
+          "name": "Koramangala campus",
+          "city": "Bengaluru",
+          "assets": [
+            {
+              "id": "AST-1301",
+              "siteId": "SITE-116",
+              "type": "generator",
+              "nickname": "Campus DG",
+              "coverage": "premium",
+              "contractRef": "CON-129-A1",
+              "requiredCertifications": [
+                "electrical"
+              ]
+            },
+            {
+              "id": "AST-1302",
+              "siteId": "SITE-116",
+              "type": "hvac",
+              "nickname": "Auditorium chiller",
+              "coverage": "premium",
+              "contractRef": "CON-129-A1",
+              "requiredCertifications": [
+                "refrigerant"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
