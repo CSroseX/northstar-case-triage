@@ -1,0 +1,383 @@
+[
+  {
+    "requestId": "REQ-8259",
+    "subject": "CRAC 3 alarm returned",
+    "body": "The high-temperature warning on Server room CRAC 3 has returned after last week's visit. Asset AST-702. Current room temperature is stable at 22\u00c2\u00b0C.",
+    "status": "dispatch_ready",
+    "entities": {
+      "customerId": "CUS-067",
+      "siteId": "SITE-054",
+      "assetId": "AST-702"
+    },
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "entitlement": {
+      "status": "covered",
+      "sla": "2h response"
+    },
+    "nextActions": [
+      {
+        "type": "coverage_confirmed",
+        "reason": "Agreement CON-067 is active and in force at the request time"
+      },
+      {
+        "type": "technician_matched",
+        "reason": "TECH-02 holds the required skill and certifications and is available in Bengaluru"
+      }
+    ],
+    "missingInformation": [],
+    "workOrder": {
+      "created": false,
+      "recommendedTechnicianId": "TECH-02",
+      "assetId": "AST-702",
+      "note": "Recommendation only; availability is re-checked before creation"
+    },
+    "warnings": [
+      "Technician is a recommendation; availability must be re-checked immediately before the work order is created",
+      "Response commitment: 2 hours"
+    ]
+  },
+  {
+    "requestId": "REQ-8261",
+    "subject": "Packing hall AC noisy",
+    "body": "The packing hall AC has developed a rattling noise. Cooling is normal. This is AST-501 at the Yeshwanthpur hub.",
+    "status": "dispatch_ready",
+    "entities": {
+      "customerId": "CUS-044",
+      "siteId": "SITE-037",
+      "assetId": "AST-501"
+    },
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "entitlement": {
+      "status": "covered",
+      "sla": "8h response"
+    },
+    "nextActions": [
+      {
+        "type": "coverage_confirmed",
+        "reason": "Agreement CON-044-A3 is active and in force at the request time"
+      },
+      {
+        "type": "technician_matched",
+        "reason": "TECH-02 holds the required skill and certifications and is available in Bengaluru"
+      }
+    ],
+    "missingInformation": [],
+    "workOrder": {
+      "created": false,
+      "recommendedTechnicianId": "TECH-02",
+      "assetId": "AST-501",
+      "note": "Recommendation only; availability is re-checked before creation"
+    },
+    "warnings": [
+      "Technician is a recommendation; availability must be re-checked immediately before the work order is created",
+      "Response commitment: 8 hours"
+    ]
+  },
+  {
+    "requestId": "REQ-8264",
+    "subject": "Line 4 pressure falling again",
+    "body": "Line 4 compressor AST-601 is losing pressure during the second shift, similar to REQ-8120. Production has not stopped yet. Can you check the previous work and advise the next step?",
+    "status": "clarification_required",
+    "entities": {
+      "customerId": "CUS-052",
+      "siteId": "SITE-043",
+      "assetId": "AST-601"
+    },
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.5
+    },
+    "entitlement": {
+      "status": "not_assessed",
+      "sla": "not_applicable"
+    },
+    "nextActions": [
+      {
+        "type": "possible_duplicate_unclear",
+        "reason": "This may be the same fault as an open job on this asset; a coordinator must confirm before a second work order is considered"
+      }
+    ],
+    "missingInformation": [
+      "Whether this is the same fault as the job already open"
+    ],
+    "workOrder": null,
+    "warnings": [
+      "Possible duplicate held for operator review"
+    ]
+  },
+  {
+    "requestId": "REQ-8268",
+    "subject": "Banquet chiller inspection",
+    "body": "Please schedule an inspection for the banquet chiller AST-801 before this weekend's event. The account portal says service is on hold, but our finance team says the renewal payment was made yesterday.",
+    "status": "account_review_required",
+    "entities": {
+      "customerId": "CUS-074",
+      "siteId": "SITE-063",
+      "assetId": "AST-801"
+    },
+    "classification": {
+      "category": "planned_service",
+      "urgency": "routine",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "entitlement": {
+      "status": "review_required",
+      "sla": "not_applicable"
+    },
+    "nextActions": [
+      {
+        "type": "agreement_not_active",
+        "reason": "Agreement CON-074 is suspended"
+      }
+    ],
+    "missingInformation": [
+      "Confirmation of coverage from the account record"
+    ],
+    "workOrder": null,
+    "warnings": [
+      "Coverage could not be confirmed from the agreement record"
+    ]
+  },
+  {
+    "requestId": "REQ-8271",
+    "subject": "Backup DG controller fault",
+    "body": "Dialysis backup DG AST-901 shows controller fault 118. There is no smoke or smell. Please arrange someone on site before the evening shift.",
+    "status": "account_review_required",
+    "entities": {
+      "customerId": "CUS-083",
+      "siteId": "SITE-071",
+      "assetId": "AST-901"
+    },
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "entitlement": {
+      "status": "review_required",
+      "sla": "not_applicable"
+    },
+    "nextActions": [
+      {
+        "type": "remote_only_cannot_dispatch",
+        "reason": "Agreement CON-083-A1 is remote-only and does not authorise an on-site visit"
+      }
+    ],
+    "missingInformation": [
+      "Confirmation of coverage from the account record"
+    ],
+    "workOrder": null,
+    "warnings": [
+      "Coverage could not be confirmed from the agreement record"
+    ]
+  },
+  {
+    "requestId": "REQ-8275",
+    "subject": "AHU 2 airflow weak",
+    "body": "Sortation hall AHU 2, AST-1001, has weak airflow again. Cooling remains within range. Please review the June visit before assigning this.",
+    "status": "dispatch_ready",
+    "entities": {
+      "customerId": "CUS-096",
+      "siteId": "SITE-082",
+      "assetId": "AST-1001"
+    },
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "entitlement": {
+      "status": "covered",
+      "sla": "8h response"
+    },
+    "nextActions": [
+      {
+        "type": "coverage_confirmed",
+        "reason": "Agreement CON-096 is active and in force at the request time"
+      },
+      {
+        "type": "technician_matched",
+        "reason": "TECH-02 holds the required skill and certifications and is available in Bengaluru"
+      }
+    ],
+    "missingInformation": [],
+    "workOrder": {
+      "created": false,
+      "recommendedTechnicianId": "TECH-02",
+      "assetId": "AST-1001",
+      "note": "Recommendation only; availability is re-checked before creation"
+    },
+    "warnings": [
+      "Technician is a recommendation; availability must be re-checked immediately before the work order is created",
+      "Response commitment: 8 hours"
+    ]
+  },
+  {
+    "requestId": "REQ-8279",
+    "subject": "Water beside instrument UPS",
+    "body": "There is water on the floor beside instrument UPS AST-1102. The area is being kept clear and nobody has touched the equipment.",
+    "status": "human_escalation_required",
+    "entities": {
+      "customerId": "CUS-108",
+      "siteId": "SITE-094",
+      "assetId": "AST-1102"
+    },
+    "classification": {
+      "category": "safety",
+      "urgency": "immediate",
+      "safetyRisk": true,
+      "confidence": 0.9
+    },
+    "entitlement": {
+      "status": "not_assessed",
+      "sla": "not_applicable"
+    },
+    "nextActions": [
+      {
+        "type": "safety_signal_affirmed",
+        "reason": "The report describes a possible immediate hazard"
+      }
+    ],
+    "missingInformation": [],
+    "workOrder": null,
+    "warnings": [
+      "Safety escalation: no troubleshooting advice and no automatic dispatch",
+      "Reported wording: \"There is water on the floor beside instrument UPS AST-1102.\""
+    ]
+  },
+  {
+    "requestId": "REQ-8283",
+    "subject": "Press compressor pressure oscillation",
+    "body": "AST-1201 pressure is oscillating again during long runs. Production is continuing. Please compare with the July work order.",
+    "status": "dispatch_ready",
+    "entities": {
+      "customerId": "CUS-117",
+      "siteId": "SITE-105",
+      "assetId": "AST-1201"
+    },
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "entitlement": {
+      "status": "covered",
+      "sla": "12h response"
+    },
+    "nextActions": [
+      {
+        "type": "coverage_confirmed",
+        "reason": "Agreement CON-117 is active and in force at the request time"
+      },
+      {
+        "type": "technician_matched",
+        "reason": "TECH-05 holds the required skill and certifications and is available in Bengaluru"
+      }
+    ],
+    "missingInformation": [],
+    "workOrder": {
+      "created": false,
+      "recommendedTechnicianId": "TECH-05",
+      "assetId": "AST-1201",
+      "note": "Recommendation only; availability is re-checked before creation"
+    },
+    "warnings": [
+      "Technician is a recommendation; availability must be re-checked immediately before the work order is created",
+      "Response commitment: 12 hours"
+    ]
+  },
+  {
+    "requestId": "REQ-8287",
+    "subject": "Auditorium chiller service",
+    "body": "Please plan the quarterly service for auditorium chiller AST-1302 next week under amendment CON-129-A1.",
+    "status": "covered_action",
+    "entities": {
+      "customerId": "CUS-129",
+      "siteId": "SITE-116",
+      "assetId": "AST-1302"
+    },
+    "classification": {
+      "category": "planned_service",
+      "urgency": "routine",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "entitlement": {
+      "status": "covered",
+      "sla": "6h response"
+    },
+    "nextActions": [
+      {
+        "type": "coverage_confirmed",
+        "reason": "Agreement CON-129-A1 is active and in force at the request time"
+      },
+      {
+        "type": "planned_not_dispatched",
+        "reason": "Planned service is scheduled, not dispatched at intake"
+      }
+    ],
+    "missingInformation": [],
+    "workOrder": null,
+    "warnings": [
+      "No work order at intake; the visit is scheduled first"
+    ]
+  },
+  {
+    "requestId": "REQ-8290",
+    "subject": "DG B failed remote start",
+    "body": "Fulfilment DG B AST-1002 failed a remote start test. No smoke, fuel smell or water is present. The site is currently on utility power.",
+    "status": "dispatch_ready",
+    "entities": {
+      "customerId": "CUS-096",
+      "siteId": "SITE-082",
+      "assetId": "AST-1002"
+    },
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "entitlement": {
+      "status": "covered",
+      "sla": "8h response"
+    },
+    "nextActions": [
+      {
+        "type": "coverage_confirmed",
+        "reason": "Agreement CON-096 is active and in force at the request time"
+      },
+      {
+        "type": "technician_matched",
+        "reason": "TECH-01 holds the required skill and certifications and is available in Bengaluru"
+      }
+    ],
+    "missingInformation": [],
+    "workOrder": {
+      "created": false,
+      "recommendedTechnicianId": "TECH-01",
+      "assetId": "AST-1002",
+      "note": "Recommendation only; availability is re-checked before creation"
+    },
+    "warnings": [
+      "Technician is a recommendation; availability must be re-checked immediately before the work order is created",
+      "Response commitment: 8 hours"
+    ]
+  }
+]
