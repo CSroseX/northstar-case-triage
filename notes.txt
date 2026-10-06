@@ -20,12 +20,15 @@ who owns what
 - meera (northstar ops) - operating priorities, safety + entitlement calls
 - nikhil (northstar IT) - API access, test env, event delivery, X-Event-ID, repeats
 - aditi (celeco) - model gateway access/limits, coordination on celeco side
-- rohan (northstar) - dispatch practice. haven't spoken to him yet. bring in when we get to
-  technician matching / coordinator desk reality.
+- rohan (northstar) - dispatch practice + coordinator desk. replied 6 oct, owns the three
+  dispatch questions. sent OPS-INTAKE-003 + OPS-DISPATCH-004. open q back to him: scheduling
+  lead time (see D2 below)
 
 source docs (in docs/client/) - build follows these, not anyone's summary of them:
 - POL-SAFETY-001 safety escalation policy
 - POL-CONTRACT-002 contract interpretation standard
+- OPS-INTAKE-003 request intake + duplicate handling (new, from rohan)
+- OPS-DISPATCH-004 technician dispatch standard (new, from rohan)
 - SYS-CATALOG-001 northstar systems & API reference
 - CELECO-MODEL-001 model gateway guide
 
@@ -50,6 +53,28 @@ safety (POL-SAFETY-001 + meera)
     2. model can't clear a safety signal on its own. hazard-type wording present, or model
        output missing/malformed -> cautious path
 
+my dispatch decisions (mine, not rohan's - flag in SOLUTION.md, revisit with him)
+- D1. breakdowns: same-city only. for a BREAKDOWN, a tech counts as available only if
+  qualified + available + tech.city == site.city. none -> resource_escalation_required.
+  rohan's actual practice is softer (can they reach it inside the response window, travel as a
+  tie-breaker) but that needs travel-time/route/traffic data we don't have and the API doesn't
+  give. he does say a distant tech is usually the wrong answer for a tight response term, so
+  same-city is the defensible approximation of his rule, and it fails safe (escalates to a
+  human rather than promising a visit we can't make).
+  deliberately NOT applied to planned work - rohan says travel is fine there because the route
+  and day get planned around it.
+  cost: AST-701 and AST-1301 drop to a single available tech (TECH-13) once TECH-07/Mysuru and
+  TECH-12/Tumakuru are excluded. accepted.
+  can't implement his real tie-breakers either: "local familiarity with the site" would need
+  tech-to-past-WO history, and work-order-history has no technicianId field. note as a limit.
+- D2. planned acknowledgement promises no date. name the service + asset, say the visit is
+  being scheduled against the contract, don't commit to a date, slot or window. rohan wants a
+  date by which we'd come back with a proposed slot, but we have no data on northstar's
+  scheduling lead time and inventing an interval would be exactly the kind of guess the rest
+  of this design refuses. a coordinator supplies it.
+  the coordinator fills the date in when they pick up the case - OPS-INTAKE-003 already says
+  the acknowledgement states what happens next and what's still needed, which this satisfies.
+
 contract / entitlement (POL-CONTRACT-002 + meera)
 - coverage comes from the agreement records, not from what the customer says. payment
   receipts, "we're premium", account manager messages = context, not evidence
@@ -70,21 +95,76 @@ contract / entitlement (POL-CONTRACT-002 + meera)
   under review -> acknowledge the issue, don't promise attendance, say we're checking the
   account record
 
-identity / missing info (meera)
+identity / missing info (meera + rohan)
 - missing equipment details go back to customer or account owner, never guessed
   ("backup unit near pharmacy" story - two similar assets, don't pick one)
+- NEW (rohan): customers appear under legal AND trading names. match on aliases[] as well as
+  name. they once recreated a job because request 1 was logged under the legal name and
+  request 2 under the trading name and nobody saw it was the same site. that's the failure
+  mode to design against. data backs this - every customer record has an aliases[] array
 
-duplicates (meera + nikhil) - two different things:
+duplicates (meera + nikhil + rohan/OPS-INTAKE-003) - now THREE things:
 - same X-Event-ID delivered again (at-least-once delivery) -> transport repeat, return the
   original result, never a second work order
 - different request about the same job (email + portal 4 mins apart) -> duplicate_detected,
   acknowledge as duplicate, preserve original references, don't open a second WO
+- NEW: it turns on the FAULT, not the asset. same fault reported again, or more detail on
+  something already open -> link to the existing WO + update it, no second WO. coordinator
+  then decides if the existing job needs escalating/reassigning. a genuinely DIFFERENT fault
+  on the same asset -> its own WO (skills, parts, coverage can differ; merging hides one of
+  the two problems)
+- NEW: unclear whether it's a duplicate -> hold for operator review. a human decides. don't
+  guess in either direction
+- NEW: keep the original request refs linked even when no new WO is created, so the next
+  coordinator can see the portal ticket and the email are one incident
+- rohan's watch-list: same incident via two channels, forwarded email with a changed subject,
+  a second person at the customer reporting the same thing
+- compare customer, site, asset, symptoms AND timing before opening another case
 
-work orders (meera + nikhil + API ref)
+work orders (meera + nikhil + API ref + rohan/OPS-DISPATCH-004)
 - straight-through only when customer, site, asset, entitlement AND technician match are all
   supported by evidence and nothing consequential is uncertain. everything else -> coordinator
   with reason + evidence attached
 - safety cases, uncertain identity/entitlement, out-of-coverage dispatch -> always human
+- NEW (rohan): PLANNED WORK IS NOT DISPATCHED AT INTAKE. quarterly/preventive service gets
+  scheduled first - coordinator confirms customer/site/asset, checks the contract covers that
+  service for that asset, then books a slot that fits the visit window + the tech's route. the
+  WO is created when the visit goes on the schedule, NOT at intake.
+  why: raising WOs at intake fills the board with open orders sitting for weeks (open-order
+  count stops meaning anything) and invites double-booking - two coordinators can each book the
+  same quarterly visit against the same asset from two different emails
+  -> so planned = acknowledge + confirm visit window. only a BREAKDOWN reaches dispatch_ready.
+  this settles the covered_action vs dispatch_ready question in the open list below
+- NEW: acknowledgement for planned work should name the service + asset, say it's being
+  scheduled against the contract, and give a date by which we'll come back with a proposed
+  slot. if a slot is already known, include the date + window (else the customer calls back
+  within the hour chasing a date). see D2 - we don't have lead-time data so we don't promise
+- NEW: AVAILABILITY IS NOT STATIC. re-check immediately before creating the WO, not just at
+  the start of triage. a tech can show free and accept a different emergency in the 5 minutes
+  between the check and the write - this has actually happened to them. anything triage
+  surfaces is a SUGGESTION re-verified at commit time, not a booking
+- NEW: nobody qualified available -> keep with dispatch + escalate the resource decision.
+  never a placeholder WO against an unavailable or unqualified tech. never substitute someone
+  nearby who lacks the skill/cert. dispatch lead may reprioritise or engage a partner - human
+- NEW: availability changes after assignment but before acknowledgement -> reopen selection,
+  preserve the earlier attempt. already en route -> dispatch change process, don't silently
+  overwrite the WO
+- selection sequence (OPS-DISPATCH-004): asset type + required certs from the asset record ->
+  filter by skill -> require EVERY listed cert -> check availability/active assignments at
+  creation time -> distance only as a tie-breaker, never a substitute for qualification
+- rohan on base city: NOT a hard rule. no restriction that a mysuru tech can't take a
+  bengaluru site. what matters is reaching the site inside the contract response window, and
+  whether the travel is worth it against their board. mysuru<->bengaluru is a long haul and
+  depends on day/time/traffic. same-day usually only makes sense if the job is later in the
+  day, the tech is already heading that way, or there's genuinely nobody closer. for an
+  EMERGENCY with a tight response term a mysuru tech is usually the wrong answer even if the
+  system shows them free. for PLANNED work it's fine - route and day can be planned around it
+- rohan's tie-breakers after qualification + availability: local familiarity with the site
+  first, then travel time. someone who's worked that site often finishes faster than someone
+  closer who's never seen the equipment
+- acknowledgement (OPS-INTAKE-003): say what we understood, what happens next, what's still
+  needed. never expose internal prompts, confidence scores or raw system errors. never imply
+  a technician is confirmed before the WO response has been reconciled
 - WO create needs externalEventId = X-Event-ID. repeating it returns the original WO
   ({workOrder, duplicate}). retries must reuse the same id - a retry with a new id is how they
   got a second WO before
@@ -145,25 +225,38 @@ pipeline
 --------
 1. intake - validate input, X-Event-ID already processed? return stored result
 2. read - single model call -> facts json. validate. broken/timeout -> cautious path
-3. evidence - customer -> site -> asset -> agreement family in force on receivedAt ->
-   qualified + available technicians -> open work orders. bounded retries, failure -> failed
-4. decide - in order: safety -> identity -> duplicate -> coverage -> technician -> status + reasons
-5. act - create WO only for dispatch_ready, keyed on X-Event-ID. handle duplicate flag,
+3. evidence - customer (name + aliases) -> site -> asset -> agreement family in force on
+   receivedAt -> qualified + available technicians -> open work orders on the asset.
+   bounded retries, failure -> failed
+4. decide - in order: safety -> identity -> duplicate (same fault? different fault? unclear
+   -> human) -> coverage -> PLANNED vs BREAKDOWN -> technician -> status + reasons
+5. act - planned: acknowledge + schedule, NO work order. breakdown: re-check availability
+   immediately before the write, then create WO keyed on X-Event-ID. handle duplicate flag,
    reconcile after 504
 6. respond - build case result. customer draft by status (templates, no advice on safety cases),
    audit with source refs (policy ids, record ids), model trace ids, warnings
 
 open / to verify in sandbox
 ---------------------------
-- covered_action vs dispatch_ready - my reading: covered_action = covered planned work
-  (scheduled service, coverage confirmation), dispatch_ready = covered breakdown + tech
-  matched + WO created. confirm against data / ask rohan or meera
-- how a business duplicate is found when the earlier request didn't create a WO - probably
-  route=requests (saved workflow state). check
-- should we write to request-workflow (coordinator workspace) for non-dispatch cases? likely
-  part of "useful to a coordinator" + possibly an observed side effect. check
-- what the base CON-012 says vs A2, does an A1 exist
-- submission.json manifest schema - haven't found it yet
+- RESOLVED (rohan, 6 oct) covered_action vs dispatch_ready - my reading was right and the
+  reason is operational, not contractual. planned work is scheduled, not dispatched: the WO is
+  raised when the visit goes on the schedule, not at intake. so covered_action = covered
+  planned work (scheduled service, coverage confirmation), dispatch_ready = covered BREAKDOWN
+  + tech matched + WO created. the discriminator is planned vs breakdown, NOT coverage and NOT
+  technician availability. data agrees: VIS-001 is covered and has an available tech
+  (TECH-01/08) and still expects covered_action
+- RESOLVED (data) what the base CON-012 says vs A2, does an A1 exist - neither exists. 13
+  agreements, one per customer, no base contracts, no intermediate amendments. q=CON-012
+  returns only CON-012-A2. CON-044-A3 exists with no A1/A2 and no supersedes. see FINDINGS.md
+- PARTLY RESOLVED how a business duplicate is found when the earlier request didn't create a
+  WO - NOT via saved workflow state: workflow is null on all 18 seeded requests including the
+  VIS-001 that VIS-005 duplicates. so it's route=requests (full list, filter client-side -
+  q= is ignored there) + our own store. rohan adds the matching rule: compare customer, site,
+  asset, symptoms, timing, and decide same-fault vs different-fault
+- still open: should we write to request-workflow (coordinator workspace) for non-dispatch
+  cases? likely part of "useful to a coordinator" + possibly an observed side effect. check.
+  OPS-INTAKE-003 "record the decision" leans yes
+- still open: submission.json manifest schema - haven't found it yet
 
 deliverables
 ------------
