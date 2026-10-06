@@ -458,3 +458,26 @@ async def test_a_uuid_work_order_id_falls_back_to_the_request_id() -> None:
     assert "8180a1c5" not in draft
     assert "REQ-V006" in draft
     assert "within 4 hours" in draft
+
+
+async def test_a_non_request_reply_omits_the_issue_line() -> None:
+    """Nothing was described, so there is no issue to state."""
+    case = Case(
+        id="NOT-A-REQUEST",
+        assetId=None,
+        receivedAt="2026-09-20T09:00:00Z",
+        expectedStatus="clarification_required",
+        subject="Quick question",
+        body="Hi, can I get your number",
+        facts=RequestFacts(
+            assetMentions=[], safetySignal="absent", intent="other", symptomSummary=""
+        ),
+    )
+    result = await _run(case)
+    draft = result.customerResponseDraft
+
+    assert result.status == "clarification_required"
+    assert "Issue:" not in draft
+    assert "which equipment or service you need help with" in draft
+    # The three-line shape still holds for everything that does describe an issue.
+    assert draft.startswith("We've received your request.")

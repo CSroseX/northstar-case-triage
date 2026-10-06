@@ -80,6 +80,15 @@ HAZARD_PATTERNS: tuple[tuple[str, str], ...] = (
     ),
 )
 
+# The one safety question we ask when a hazard cannot be ruled out. One sentence, plain
+# enough to answer while standing next to the equipment. It covers all four triggers in
+# POL-SAFETY-001 — smoke, a fuel or gas leak, water near electrical equipment, and anyone
+# feeling unwell — without reading like a checklist.
+SAFETY_QUESTION = (
+    "Is there any smoke, a burning or fuel smell, or water near the equipment, "
+    "and is anyone feeling unwell?"
+)
+
 ONSITE_REQUEST_PATTERN = re.compile(
     r"\b(?:on[- ]?site|onsite|someone (?:on site|out|to attend|to come)|send (?:someone|a )?"
     r"(?:technician|engineer)?|engineer|technician|visit|attend|dispatch|call[- ]?out)\b",
@@ -253,6 +262,27 @@ def _response_window_hours(evidence: AssetEvidence) -> float | None:
         return float(hours) if hours is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _is_not_a_service_request(facts: RequestFacts) -> bool:
+    """Is this message not a service request at all?
+
+    The intent carries the weight: "other" means the model could not place the message in
+    any of the service categories, including "breakdown". Combined with no equipment
+    named, no safety signal and nothing referenced, there is nothing to triage.
+
+    Note the summary is deliberately NOT required to be empty — the model usually writes
+    one for any message ("request for contact number"), so requiring it blank would never
+    match in practice. A message that describes a fault is classified "breakdown" rather
+    than "other", so it still reaches the equipment ask.
+    """
+    return (
+        facts.intent == "other"
+        and not facts.assetMentions
+        and facts.safetySignal == "absent"
+        and not facts.referencedRequests
+        and not facts.modelUnavailable
+    )
 
 
 def _matched_reference(
@@ -532,10 +562,10 @@ def decide(
             status="clarification_required",
             reasons=[ambiguity_reason],
             safetyQuote=facts.safetyQuote,
-            safetyQuestion=(
-                "Before we go further: is there any smoke, burning smell, fuel or gas smell, "
-                "or water near the equipment, and is anyone feeling unwell near it?"
-            ),
+            # Plain enough for whoever is standing next to the equipment to answer, not a
+            # form (Meera). Still covers POL-SAFETY-001's four triggers: smoke, a fuel or
+            # gas leak, water near electrical equipment, and anyone feeling unwell.
+            safetyQuestion=SAFETY_QUESTION,
             missingInformation=["Confirmation of whether there is an immediate hazard at the site"],
             warnings=["Nothing progresses until the safety question is answered"],
         )
@@ -560,6 +590,26 @@ def decide(
 
     # --- 3. identity ----------------------------------------------------
     if evidence.outcome == "no_asset_id":
+        # A message that describes no fault, names no equipment and raises no safety
+        # signal is not really a service request. Asking such a sender for an asset
+        # identifier makes no sense — ask what they need instead. OPS-INTAKE-003: ask
+        # only for information that changes the next action.
+        if _is_not_a_service_request(facts):
+            return Decision(
+                status="clarification_required",
+                reasons=[
+                    Reason(
+                        "not_a_service_request",
+                        "The message does not describe a fault or name any equipment, so "
+                        "there is nothing to triage yet",
+                        "OPS-INTAKE-003",
+                    )
+                ],
+                missingInformation=[
+                    "Which equipment or service the customer needs help with"
+                ],
+            )
+
         return Decision(
             status="clarification_required",
             reasons=[

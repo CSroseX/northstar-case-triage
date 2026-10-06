@@ -345,7 +345,7 @@ symptoms: _freezer stopped_
 
 Why:
 - Hazard wording present (smoke or fire) but not reported by the extraction; treated as ambiguous _(POL-SAFETY-001)_
-- Question to ask: _Before we go further: is there any smoke, burning smell, fuel or gas smell, or water near the equipment, and is anyone feeling unwell near it?_
+- Question to ask: _Is there any smoke, a burning or fuel smell, or water near the equipment, and is anyone feeling unwell?_
 - Still needed: Confirmation of whether there is an immediate hazard at the site
 - ⚠️ Nothing progresses until the safety question is answered
 

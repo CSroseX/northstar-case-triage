@@ -892,3 +892,98 @@ async def test_a_duplicate_that_references_an_open_job_links_that_job() -> None:
 
     assert result.linkedWorkOrders == ["WO-9290"]
     assert "WO-9290" not in result.otherOpenWorkOrders
+
+
+# --- messages that are not service requests -----------------------------
+
+
+async def test_a_message_that_is_not_a_service_request_asks_what_they_need() -> None:
+    """"Hi, can I get your number" must not be asked for an equipment identifier."""
+    facts = RequestFacts(
+        assetMentions=[],
+        safetySignal="absent",
+        intent="other",
+        # The live model writes a summary even for a non-request, so the rule must not
+        # depend on it being blank.
+        symptomSummary="request for contact number",
+    )
+    ev = AssetEvidence(outcome="no_asset_id")
+    result = decide(facts, ev, "Hi, can I get your number")
+
+    assert result.status == "clarification_required"
+    assert any(r.code == "not_a_service_request" for r in result.reasons)
+    assert result.missingInformation == [
+        "Which equipment or service the customer needs help with"
+    ]
+    # Not the equipment-identifier ask.
+    assert not any(r.code == "asset_not_identified" for r in result.reasons)
+
+
+async def test_a_fault_without_equipment_still_asks_for_the_equipment() -> None:
+    """The narrow case must not swallow a real report that omits the asset."""
+    facts = RequestFacts(
+        assetMentions=[],
+        safetySignal="absent",
+        intent="breakdown",
+        symptomSummary="freezer not holding temperature",
+    )
+    ev = AssetEvidence(outcome="no_asset_id")
+    result = decide(facts, ev, "The freezer at our cold store is not holding temperature.")
+
+    assert any(r.code == "asset_not_identified" for r in result.reasons)
+    assert not any(r.code == "not_a_service_request" for r in result.reasons)
+
+
+async def test_a_safety_signal_is_never_treated_as_a_non_request() -> None:
+    """Safety outranks everything; a hazard with no equipment still escalates."""
+    facts = RequestFacts(
+        assetMentions=[],
+        safetySignal="affirmed",
+        safetyQuote="there is smoke in the plant room",
+        intent="other",
+        symptomSummary="",
+    )
+    ev = AssetEvidence(outcome="no_asset_id")
+    result = decide(facts, ev, "There is smoke in the plant room.")
+
+    assert result.status == "human_escalation_required"
+
+
+async def test_an_unreadable_message_is_not_treated_as_a_non_request() -> None:
+    """A failed model read takes the cautious path, not the 'nothing to triage' path."""
+    facts = parse_facts(None)
+    ev = AssetEvidence(outcome="no_asset_id")
+    result = decide(facts, ev, "Something is wrong with the unit.")
+
+    assert not any(r.code == "not_a_service_request" for r in result.reasons)
+
+
+# --- the safety question wording ----------------------------------------
+
+
+def test_the_safety_question_is_one_plain_sentence() -> None:
+    """Meera: answerable by whoever is next to the equipment, not a form."""
+    from app.decide import SAFETY_QUESTION
+
+    assert SAFETY_QUESTION.count("?") == 1
+    assert len(SAFETY_QUESTION) < 140
+    # Still covers POL-SAFETY-001's four triggers.
+    lowered = SAFETY_QUESTION.lower()
+    for trigger in ("smoke", "smell", "water", "unwell"):
+        assert trigger in lowered
+
+
+async def test_the_safety_reply_states_the_lead_in_once() -> None:
+    from app.replies import build_customer_reply
+
+    facts = RequestFacts(
+        assetMentions=[], safetySignal="ambiguous", intent="breakdown", symptomSummary="odd noise"
+    )
+    ev = AssetEvidence(outcome="no_asset_id")
+    decision = decide(facts, ev, "There is an odd noise from the unit.")
+    draft = build_customer_reply(facts, ev, decision)
+
+    assert "Before we arrange anything" not in draft
+    assert "Before we go further" not in draft
+    # The question appears exactly once.
+    assert draft.count("Is there any smoke") == 1

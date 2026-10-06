@@ -134,9 +134,15 @@ def _next_step(
     # --- clarification: the one safety question, or only what we need ---
     if status == "clarification_required":
         if decision.safetyQuestion:
+            # The question carries its own lead-in; adding another repeats it.
             return (
-                f"Before we arrange anything, please answer one question: "
                 f"{decision.safetyQuestion} Nothing will progress until we hear back from you."
+            )
+        if any(r.code == "not_a_service_request" for r in decision.reasons):
+            # Nothing to triage yet: ask what they need, not for an equipment id.
+            return (
+                "Please tell us which equipment or service you need help with and a "
+                "coordinator will get back to you."
             )
         needed = decision.missingInformation
         ask = needed[0] if needed else "a little more detail about the equipment involved"
@@ -234,11 +240,14 @@ def build_customer_reply(
     work_order: dict[str, Any] | None = None,
 ) -> str:
     """One reply, in the customer's terms, for the status we reached."""
-    lines = [
-        OPENING,
-        _issue_line(facts, evidence),
-        f"Next step: {_next_step(facts, evidence, decision, work_order)}",
-    ]
+    lines = [OPENING]
+
+    # A message that described no issue gets no Issue line: inventing one ("as described
+    # in your message") says nothing and reads oddly when nothing was described.
+    if not any(r.code == "not_a_service_request" for r in decision.reasons):
+        lines.append(_issue_line(facts, evidence))
+
+    lines.append(f"Next step: {_next_step(facts, evidence, decision, work_order)}")
 
     # POL-SAFETY-001: a safety escalation keeps the customer's exact words on the record.
     if decision.status == "human_escalation_required" and decision.safetyQuote:
