@@ -51,7 +51,8 @@ acknowledgement costs more than a slightly slower right one. Never optimise for 
     we rely on → visible failure state for a coordinator.
 13. **Acknowledgements** say what we understood, what happens next, what is still needed. Never
     expose internal prompts, confidence scores or raw errors. Never imply a technician is
-    confirmed before the WO response is reconciled.
+    confirmed before the WO response is reconciled. 
+14. When reporting results to me, explain them in plain language first, then the technical details.
 
 ## Our decisions (ours, not the client's — revisit with Rohan)
 

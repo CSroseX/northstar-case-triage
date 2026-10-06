@@ -11,3 +11,4 @@ venv/
 .ruff_cache/
 
 exploration/raw/
+exploration/model-cache/

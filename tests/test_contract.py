@@ -1,20 +1,69 @@
-"""The response must validate against the provided case-result.schema.json."""
+"""The response must validate against the provided case-result.schema.json.
+
+Northstar reads and the model call are stubbed for the whole module: these tests check
+the contract, and must never touch the live API or spend model budget.
+"""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from jsonschema import Draft202012Validator
 
+import app.main as main
 from app.main import app
+from tests.saved_api import saved_handler
 
 SCHEMA_PATH = Path(__file__).parent / "case-result.schema.json"
 CASES_PATH = Path(__file__).parent / "visible-cases.json"
 
 client = TestClient(app)
+
+# A model answer that asserts nothing about safety, so the cautious path applies and the
+# contract is exercised without any real call.
+_STUB_MODEL_ANSWER = {
+    "assetMentions": [],
+    "safetySignal": "absent",
+    "safetyQuote": "",
+    "intent": "other",
+    "symptomSummary": "stubbed",
+    "referencedRequests": [],
+    "requiresOnsite": False,
+    "sameFaultAsExisting": "",
+    "sameFaultReference": "",
+}
+
+
+def _stub_handler(request: httpx.Request) -> httpx.Response:
+    if request.method == "POST" or request.url.params.get("route") == "model":
+        return httpx.Response(
+            200,
+            json={
+                "id": "trace-contract",
+                "choices": [
+                    {"message": {"role": "assistant", "content": json.dumps(_STUB_MODEL_ANSWER)}}
+                ],
+                "celeco": {"traceId": "trace-contract"},
+            },
+        )
+    return saved_handler(request)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_calls(monkeypatch):
+    """Route every outbound call in this module to the saved records and a stub model."""
+    original = httpx.AsyncClient
+
+    def patched(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(_stub_handler)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(main.httpx, "AsyncClient", patched)
+    main._RESULTS_BY_EVENT_ID.clear()
 
 
 @pytest.fixture(scope="module")
@@ -55,15 +104,18 @@ def test_result_matches_schema(case_id: str, request_body: dict, validator) -> N
     assert not errors, "; ".join(f"{list(e.path)}: {e.message}" for e in errors)
 
 
-def test_skeleton_routes_everything_to_a_human(validator) -> None:
-    _, request_body = _visible_requests()[0]
-    result = client.post(
-        "/cases/process", json=request_body, headers={"X-Event-ID": "test-skeleton"}
-    ).json()
-
-    assert result["status"] == "human_escalation_required"
-    assert result["workOrder"] is None
-    assert any("not implemented" in w.lower() for w in result["audit"]["warnings"])
+def test_every_result_reports_a_known_status(validator) -> None:
+    """Whatever the triage concludes, it must be one of the schema's statuses."""
+    allowed = set(
+        json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))["properties"]["status"]["enum"]
+    )
+    for case_id, request_body in _visible_requests():
+        result = client.post(
+            "/cases/process", json=request_body, headers={"X-Event-ID": f"test-{case_id}"}
+        ).json()
+        assert result["status"] in allowed
+        # Nothing is ever created by a read-only triage pass.
+        assert result["workOrder"] is None or result["workOrder"].get("created") is False
 
 
 def test_extra_input_fields_are_accepted(validator) -> None:

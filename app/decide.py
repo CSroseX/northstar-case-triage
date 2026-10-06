@@ -64,6 +64,19 @@ HAZARD_PATTERNS: tuple[tuple[str, str], ...] = (
         r"\b(?:dizzy|light[- ]?headed|lightheaded|faint(?:ing)?|nause\w*|unwell|collaps\w*)\b",
         "person unwell",
     ),
+    # DELIBERATE EXTENSION BEYOND POL-SAFETY-001 — Chitransh's decision, not the policy's.
+    # Electric shock, electrocution and exposed or live wiring are not among the policy's
+    # four listed triggers, but they are immediate hazards to whoever is next to the
+    # equipment and routing them to a human is the same cautious call the policy makes
+    # everywhere else. Flag this in SOLUTION.md as an addition, and revisit with Meera.
+    (
+        r"\b(?:electrocut\w*"
+        r"|electric(?:al)? shocks?"
+        r"|got (?:an? )?shock"
+        r"|exposed (?:wir\w*|cabl\w*|conductor\w*|terminal\w*)"
+        r"|live (?:wir\w*|cabl\w*|conductor\w*|terminal\w*))\b",
+        "electric shock risk",
+    ),
 )
 
 ONSITE_REQUEST_PATTERN = re.compile(
@@ -176,6 +189,14 @@ def _same_fault(facts: RequestFacts, evidence: AssetEvidence) -> bool | None:
     descriptions of a fault is a reading task, not something code should guess at.
     """
     if not evidence.openWorkOrders and not facts.referencedRequests:
+        return False
+
+    # A request that reports no fault cannot be a repeat of one. A coverage question or a
+    # planned-service booking is a different kind of message from a breakdown report, and
+    # an open job on the same asset does not make it a duplicate (CLAUDE.md rule 7:
+    # duplicates turn on the fault). Without this, every administrative request about an
+    # asset with an open job would be held for a duplicate check that cannot apply.
+    if facts.intent in {"coverage_question", "planned_service"} and not facts.referencedRequests:
         return False
 
     referenced = {r.upper() for r in facts.referencedRequests}

@@ -45,17 +45,30 @@ Reply with JSON only, using exactly these keys:
    "absent"    - the message does not touch on any hazard.
 "safetyQuote": the sender's exact words that drove the signal, copied verbatim from the
    message, including for "denied". "" when the signal is "absent". Never paraphrase.
-"intent": one of "planned_service" (routine or scheduled maintenance), "breakdown"
-   (something has failed or is failing now), "coverage_question" (asking what is covered),
-   "follow_up" (about a job already raised), "other".
+"intent": one of "planned_service" (routine or scheduled maintenance arranged in advance),
+   "breakdown" (equipment has failed, or is failing, now), "coverage_question" (asking what
+   the agreement covers), "follow_up" (about a job already raised), "other".
+   Decide this from the STATE OF THE EQUIPMENT, not from what the sender asks for. If the
+   message says equipment is stopped, offline, failed, not starting, not holding
+   temperature, or otherwise not working at the moment, the intent is "breakdown" — even
+   when the sender frames it as a request for a particular kind of engineer, for a
+   particular day, or as a scheduling question. Use "planned_service" only when nothing is
+   reported as currently faulty.
 "symptomSummary": one short line describing the problem in the sender's own terms.
 "referencedRequests": array of earlier request or job identifiers the message points to,
    e.g. ["REQ-V001", "WO-9294"]. [] if none.
 "requiresOnsite": true if the sender asks for someone to attend in person, false if the
    request can be handled remotely or is purely administrative.
 "sameFaultAsExisting": compare this message with the open jobs and earlier requests listed
-   below. "same" if it reports a fault already covered by one of them, "different" if it is
-   a distinct fault, "unclear" if you cannot tell, "" if nothing was listed.
+   below. "" if nothing was listed. Otherwise:
+   "same"      - only when the message points at one of them (by identifier, or by saying
+                 this is about a job already raised), OR describes the same symptom that
+                 one of them already describes.
+   "different" - a symptom that is not the one already listed, and with no reference to the
+                 existing job. Equipment can develop a second, unrelated fault while a job
+                 is open; being the same machine does not make it the same fault.
+   "unclear"   - the message could plausibly be either and you cannot tell from the words.
+   Do not answer "same" merely because the equipment matches.
 "sameFaultReference": the identifier it matches when the answer is "same", otherwise "".
 
 Report what the message says. Do not infer a hazard that is not described, and do not
