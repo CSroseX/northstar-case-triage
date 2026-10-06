@@ -1,0 +1,28 @@
+# Secrets - never in the image
+.env
+.env.*
+!.env.example
+
+# Exploration output and the raw API survey
+exploration/raw/
+exploration/
+
+# VCS and local tooling
+.git/
+.gitignore
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Not needed at runtime
+tests/
+resources/
+agent-sessions/
+notes.txt
+*.md
+Dockerfile
+.dockerignore
