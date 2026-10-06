@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from .evidence import AssetEvidence, TechnicianMatch
@@ -112,6 +113,10 @@ class Decision:
     linkedRequests: list[str] = field(default_factory=list)
     # One plain question, set only for a safety clarification.
     safetyQuestion: str = ""
+    # Past jobs on this equipment, attached when the request asks about earlier work.
+    relatedHistory: list[dict[str, Any]] = field(default_factory=list)
+    # Qualified, available, same-city technicians other than the one recommended.
+    alternativeTechnicians: list[TechnicianMatch] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -126,6 +131,8 @@ class Decision:
             "linkedWorkOrders": self.linkedWorkOrders,
             "linkedRequests": self.linkedRequests,
             "safetyQuestion": self.safetyQuestion,
+            "relatedHistory": self.relatedHistory,
+            "alternativeTechnicians": [t.as_dict() for t in self.alternativeTechnicians],
         }
 
 
@@ -174,6 +181,74 @@ def _wants_onsite(facts: RequestFacts, text: str) -> bool:
     if facts.intent == "breakdown":
         return True
     return bool(ONSITE_REQUEST_PATTERN.search(text))
+
+
+# How close in time another request for the same asset has to be before a follow-up that
+# names no reference is taken to be about it. Rohan's example was four minutes; a window of
+# a few hours covers a shift without reaching back to unrelated work.
+def _parse_timestamp(value: str) -> datetime | None:
+    """ISO timestamp from a record, or None when it cannot be read."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+@dataclass(frozen=True)
+class PriorRequest:
+    """An earlier request for the same asset, and how long before this one it arrived."""
+
+    requestId: str
+    receivedAt: str
+    gapHours: float
+
+
+def _earlier_request_for_asset(evidence: AssetEvidence) -> PriorRequest | None:
+    """The EARLIEST related request naming this asset, if there is one.
+
+    The window is measured from the original report, not from the last chase-up. Taking
+    the nearest earlier request would restart the clock on every follow-up, so a customer
+    chasing every couple of hours would stay inside the window forever and never reach a
+    human — the opposite of what the escalation is for.
+    """
+    if not evidence.assetId or not evidence.receivedAt:
+        return None
+
+    received = _parse_timestamp(evidence.receivedAt)
+    if received is None:
+        return None
+
+    asset = evidence.assetId.upper()
+    earliest: PriorRequest | None = None
+    for prior in evidence.recentRequests:
+        text = f"{prior.get('subject', '')} {prior.get('body', '')}".upper()
+        if asset not in text:
+            continue
+        prior_time = _parse_timestamp(str(prior.get("receivedAt") or ""))
+        if prior_time is None:
+            continue
+        gap_hours = (received - prior_time).total_seconds() / 3600
+        if gap_hours <= 0:
+            continue
+        # Largest gap = earliest request = the start of this conversation.
+        if earliest is None or gap_hours > earliest.gapHours:
+            earliest = PriorRequest(
+                requestId=str(prior.get("requestId") or prior.get("id") or ""),
+                receivedAt=str(prior.get("receivedAt") or ""),
+                gapHours=gap_hours,
+            )
+    return earliest
+
+
+def _response_window_hours(evidence: AssetEvidence) -> float | None:
+    """The contract's response commitment, or None when there is nothing to check against."""
+    hours = (evidence.agreement or {}).get("responseHours")
+    try:
+        return float(hours) if hours is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
 def _same_fault(facts: RequestFacts, evidence: AssetEvidence) -> bool | None:
@@ -231,6 +306,8 @@ def _same_fault(facts: RequestFacts, evidence: AssetEvidence) -> bool | None:
     if assessment == "different":
         return False
     if assessment == "unclear":
+        # Left to the timing check at the call site: an earlier request for this asset
+        # inside the contract's response window is one incident reported twice.
         return None
 
     # Not assessed, or an unrecognised value. Nothing open and nothing referenced is
@@ -336,6 +413,33 @@ def decide(
             ],
             safetyQuote=facts.safetyQuote or request_text.strip()[:280],
             warnings=["Safety escalation: no troubleshooting advice and no automatic dispatch"],
+        )
+
+    # An answer to our own safety question that still leaves the hazard open stays with a
+    # human — we never ask the same question twice (Meera: "not sure" never drifts back to
+    # normal triage). A hazard word in the reply is a fresh credible signal and has already
+    # been handled by the "affirmed" branch above.
+    if facts.isSafetyAnswer and facts.safetyAnswerUncertain is not False:
+        unresolved = (
+            "The reply does not resolve whether there is a hazard"
+            if facts.safetyAnswerUncertain
+            else "The reply to the safety question could not be confirmed as resolving the hazard"
+        )
+        return Decision(
+            status="human_escalation_required",
+            reasons=[
+                Reason(
+                    "safety_answer_unresolved",
+                    f"{unresolved}; the case stays with the duty owner rather than "
+                    "returning to normal triage",
+                    "POL-SAFETY-001",
+                )
+            ],
+            safetyQuote=facts.safetyQuote or request_text.strip()[:280],
+            warnings=[
+                "Safety question answered without resolving the hazard; only the duty owner "
+                "may release this case"
+            ],
         )
 
     # The model cannot be the reason a hazard is missed (CLAUDE.md rule 2). Unsignalled
@@ -462,44 +566,144 @@ def decide(
         )
 
     # --- 4. duplicate ---------------------------------------------------
+    # A repeat is judged against the contract's own response window rather than an
+    # invented interval: a follow-up that arrives while we are still inside the window we
+    # promised is the same incident chased up, so it is linked. One that arrives after the
+    # window has passed is a different conversation and belongs with a coordinator — we
+    # record only that it came in late, never that a promise was missed, because the
+    # records here cannot show whether anyone attended.
     same_fault = _same_fault(facts, evidence)
-    if same_fault is True:
-        linked_wos = [str(w.get("id")) for w in evidence.openWorkOrders if w.get("id")]
-        linked_reqs = sorted(
-            {str(w.get("requestId")) for w in evidence.openWorkOrders if w.get("requestId")}
-            | set(facts.referencedRequests)
-        )
-        return Decision(
-            status="duplicate_detected",
-            reasons=[
-                Reason(
-                    "same_fault_already_open",
-                    "This reports a fault already open on this asset; it is linked to the "
-                    "existing work order rather than opening a second one",
-                    "OPS-INTAKE-003",
-                )
-            ],
-            linkedWorkOrders=linked_wos,
-            linkedRequests=linked_reqs,
-            warnings=["Linked to the existing job; no second work order created"],
+    linked_wos = [str(w.get("id")) for w in evidence.openWorkOrders if w.get("id")]
+    prior = _earlier_request_for_asset(evidence)
+    window_hours = _response_window_hours(evidence)
+
+    if same_fault is not False:
+        within_window = (
+            prior is not None
+            and window_hours is not None
+            and prior.gapHours <= window_hours
         )
 
-    if same_fault is None:
-        return Decision(
-            status="clarification_required",
-            reasons=[
-                Reason(
-                    "possible_duplicate_unclear",
-                    "This may be the same fault as an open job on this asset; a coordinator "
-                    "must confirm before a second work order is considered",
+        if same_fault is True and within_window:
+            linked_reqs = sorted(
+                {
+                    str(w.get("requestId"))
+                    for w in evidence.openWorkOrders
+                    if w.get("requestId")
+                }
+                | set(facts.referencedRequests)
+                | ({prior.requestId} if prior and prior.requestId else set())
+            )
+            return Decision(
+                status="duplicate_detected",
+                reasons=[
+                    Reason(
+                        "same_fault_already_open",
+                        "This reports a fault already raised for this equipment, within the "
+                        f"{window_hours:g}-hour response window of the earlier request; it is "
+                        "linked to that request rather than opening a second one",
+                        "OPS-INTAKE-003",
+                    )
+                ],
+                linkedWorkOrders=linked_wos,
+                linkedRequests=linked_reqs,
+                warnings=["Linked to the existing job; no second work order created"],
+            )
+
+        if same_fault is True and not within_window:
+            # Same fault, but outside the window (or no window to check against).
+            if prior is not None and window_hours is not None:
+                detail = (
+                    f"This repeats a request raised {prior.gapHours:.1f} hours ago, after the "
+                    f"{window_hours:g}-hour response window for this agreement had passed; a "
+                    "coordinator decides how to handle it"
+                )
+                code = "follow_up_after_response_window"
+            else:
+                detail = (
+                    "This repeats an earlier request, but there is no response window on "
+                    "the record to judge the timing against; a coordinator decides"
+                )
+                code = "follow_up_window_unknown"
+            return Decision(
+                status="human_escalation_required",
+                reasons=[Reason(code, detail, "OPS-INTAKE-003")],
+                linkedWorkOrders=linked_wos,
+                linkedRequests=sorted(
+                    set(facts.referencedRequests)
+                    | ({prior.requestId} if prior and prior.requestId else set())
+                ),
+                missingInformation=["Coordinator decision on the repeated request"],
+                warnings=[
+                    "Follow-up received after the contract response window; not dispatched "
+                    "automatically"
+                ],
+            )
+
+        # "unclear": the records settle it when an earlier request for this equipment
+        # arrived inside the window. Otherwise a human decides.
+        if same_fault is None:
+            if within_window and prior is not None:
+                return Decision(
+                    status="duplicate_detected",
+                    reasons=[
+                        Reason(
+                            "same_fault_already_open",
+                            f"An earlier request ({prior.requestId}) for this equipment "
+                            f"arrived {prior.gapHours:.1f} hours ago, inside the "
+                            f"{window_hours:g}-hour response window; this is treated as the "
+                            "same incident rather than a second job",
+                            "OPS-INTAKE-003",
+                        )
+                    ],
+                    linkedWorkOrders=linked_wos,
+                    linkedRequests=sorted(
+                        set(facts.referencedRequests) | {prior.requestId}
+                        if prior.requestId
+                        else set(facts.referencedRequests)
+                    ),
+                    warnings=["Linked to the existing job; no second work order created"],
+                )
+
+            if prior is not None and window_hours is not None:
+                reason = Reason(
+                    "follow_up_after_response_window",
+                    f"This may repeat a request raised {prior.gapHours:.1f} hours ago, after "
+                    f"the {window_hours:g}-hour response window had passed; a coordinator "
+                    "decides how to handle it",
                     "OPS-INTAKE-003",
                 )
-            ],
-            linkedWorkOrders=[str(w.get("id")) for w in evidence.openWorkOrders if w.get("id")],
-            linkedRequests=sorted(set(facts.referencedRequests)),
-            missingInformation=["Whether this is the same fault as the job already open"],
-            warnings=["Possible duplicate held for operator review"],
-        )
+                return Decision(
+                    status="human_escalation_required",
+                    reasons=[reason],
+                    linkedWorkOrders=linked_wos,
+                    linkedRequests=sorted(
+                        set(facts.referencedRequests)
+                        | ({prior.requestId} if prior.requestId else set())
+                    ),
+                    missingInformation=["Coordinator decision on the repeated request"],
+                    warnings=[
+                        "Follow-up received after the contract response window; not "
+                        "dispatched automatically"
+                    ],
+                )
+
+            return Decision(
+                status="clarification_required",
+                reasons=[
+                    Reason(
+                        "possible_duplicate_unclear",
+                        "This may be the same fault as an open job on this equipment; a "
+                        "coordinator must confirm before a second work order is considered",
+                        "OPS-INTAKE-003",
+                    )
+                ],
+                linkedWorkOrders=linked_wos,
+                linkedRequests=sorted(set(facts.referencedRequests)),
+                missingInformation=["Whether this is the same fault as the job already open"],
+                warnings=["Possible duplicate held for operator review"],
+            )
+    # same_fault is False: a different fault, so it continues through the normal checks.
 
     # --- 5. coverage ----------------------------------------------------
     wants_onsite = _wants_onsite(facts, request_text)
@@ -537,6 +741,44 @@ def decide(
             warnings=["No work order at intake; the visit is scheduled first"],
         )
 
+    # --- 6b. earlier work on this equipment -----------------------------
+    # A message that points back to a previous visit or job is asking someone to look at
+    # what was already done. Dispatching over the top of that is how a job gets created
+    # twice (OPS-INTAKE-003: check for the same incident first). The matching history goes
+    # to a coordinator with the case.
+    # A reply to our own safety question is never a request to review past work, whatever
+    # the extraction says: the model sets this flag liberally on short replies.
+    if facts.refersToPreviousWork and not facts.isSafetyAnswer:
+        history = [
+            {
+                "id": h.get("id"),
+                "requestId": h.get("requestId"),
+                "summary": h.get("summary"),
+                "status": h.get("status"),
+                "openedAt": h.get("openedAt"),
+                "closedAt": h.get("closedAt"),
+            }
+            for h in evidence.assetHistory
+        ]
+        return Decision(
+            status="human_escalation_required",
+            reasons=[
+                covered,
+                Reason(
+                    "refers_to_previous_work",
+                    "The request asks about earlier work on this equipment; a coordinator "
+                    "reviews the previous jobs before anything new is raised",
+                    "OPS-INTAKE-003",
+                ),
+            ],
+            relatedHistory=history,
+            linkedWorkOrders=[str(h["id"]) for h in history if h.get("id")],
+            missingInformation=["Coordinator review of the previous work on this equipment"],
+            warnings=[
+                "Not dispatched: the request refers to earlier work that must be reviewed first"
+            ],
+        )
+
     # --- 7. breakdown ---------------------------------------------------
     if facts.intent == "breakdown":
         # D1: for a breakdown, only qualified, available, same-city technicians count.
@@ -545,6 +787,27 @@ def decide(
         ]
         if candidates:
             chosen = candidates[0]
+            warnings = [
+                "Technician is a recommendation; availability must be re-checked "
+                "immediately before the work order is created",
+                f"Response commitment: {response_hours} hours" if response_hours else "",
+            ]
+            # A technician already on the way to this equipment is worth a coordinator's
+            # eye even when this is a genuinely different fault: they may be able to take
+            # both while on site, rather than two people attending the same equipment.
+            en_route = [
+                w
+                for w in evidence.openWorkOrders
+                if str(w.get("status") or "").lower()
+                in {"technician_en_route", "assigned", "awaiting_site_access"}
+                and w.get("technicianId")
+            ]
+            for job in en_route:
+                warnings.append(
+                    f"{job['technicianId']} is already assigned to {job['id']} on this "
+                    f"equipment ({job.get('status')}): \"{job.get('summary')}\". A "
+                    "coordinator may prefer to combine the visits."
+                )
             return Decision(
                 status="dispatch_ready",
                 reasons=[
@@ -557,11 +820,9 @@ def decide(
                     ),
                 ],
                 recommendedTechnician=chosen,
-                warnings=[
-                    "Technician is a recommendation; availability must be re-checked "
-                    "immediately before the work order is created",
-                    f"Response commitment: {response_hours} hours" if response_hours else "",
-                ],
+                # The others who could take it, so a coordinator can swap without re-deriving.
+                alternativeTechnicians=candidates[1:],
+                warnings=warnings,
             )
 
         qualified = len(evidence.qualifiedTechnicians)

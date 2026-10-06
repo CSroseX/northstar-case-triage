@@ -40,8 +40,17 @@ class LookupFailure(RuntimeError):
         self.detail = detail
 
 
+class WorkOrderRejected(RuntimeError):
+    """The API refused the write on its own terms (400/422). A retry will not help."""
+
+    def __init__(self, status_code: int, detail: str) -> None:
+        super().__init__(f"work-orders: HTTP {status_code} {detail}")
+        self.status_code = status_code
+        self.detail = detail
+
+
 class NorthstarClient:
-    """Thin read-only wrapper. One method per route; no business logic."""
+    """Thin wrapper. One method per route; no business logic."""
 
     def __init__(
         self,
@@ -132,3 +141,44 @@ class NorthstarClient:
     async def requests(self) -> list[dict[str, Any]]:
         """Full list: q= is ignored on this route, so callers filter."""
         return await self._get("requests")
+
+    # --- writes ---------------------------------------------------------
+
+    async def create_work_order(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """POST ?route=work-orders. One attempt; the caller owns retry and reconciliation.
+
+        A write is never retried blindly here: a timeout leaves the outcome uncertain, and
+        the documented recovery is to reconcile by request or event reference first
+        (SYS-CATALOG-001). Returns the {workOrder, duplicate} envelope.
+
+        Raises LookupFailure on a timeout or 5xx so the caller can reconcile, and
+        WorkOrderRejected on a 4xx, which will not improve on retry.
+        """
+        if self._client is None:
+            raise RuntimeError("NorthstarClient used outside its context manager")
+
+        try:
+            response = await self._client.post(
+                self._settings.northstar_api_base,
+                params={"route": "work-orders"},
+                headers={
+                    "authorization": f"Bearer {self._settings.northstar_token.reveal()}",
+                    "content-type": "application/json",
+                },
+                json=payload,
+            )
+        except (httpx.TimeoutException, httpx.TransportError) as exc:
+            raise LookupFailure("work-orders", type(exc).__name__) from exc
+
+        if response.status_code in RETRYABLE_STATUS:
+            # Includes the documented 504: outcome unknown, reconcile before retrying.
+            raise LookupFailure("work-orders", f"HTTP {response.status_code}")
+
+        if response.status_code >= 400:
+            detail = response.text[:300]
+            raise WorkOrderRejected(response.status_code, detail)
+
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise LookupFailure("work-orders", "response was not valid JSON") from exc

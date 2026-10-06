@@ -55,6 +55,16 @@ class RequestFacts:
     # agreement actually conflicts with what was asked for.
     requiresOnsite: bool | None = None
 
+    # Does the message point back to earlier work on this equipment — a previous visit, an
+    # old work order, "check what was done last time"? A coordinator reviews those rather
+    # than the automation dispatching over the top of them (OPS-INTAKE-003).
+    refersToPreviousWork: bool | None = None
+
+    # Is this the customer answering our safety question? And if so, did the answer leave
+    # the hazard unresolved ("not sure", "can't tell")? Meera: "not sure" stays with a human.
+    isSafetyAnswer: bool | None = None
+    safetyAnswerUncertain: bool | None = None
+
     # Set when the model failed, timed out or returned something unusable. Forces the
     # cautious path: a missing model result can never clear a safety signal.
     modelUnavailable: bool = False
@@ -70,6 +80,9 @@ class RequestFacts:
             "sameFaultAsExisting": self.sameFaultAsExisting,
             "sameFaultReference": self.sameFaultReference,
             "requiresOnsite": self.requiresOnsite,
+            "refersToPreviousWork": self.refersToPreviousWork,
+            "isSafetyAnswer": self.isSafetyAnswer,
+            "safetyAnswerUncertain": self.safetyAnswerUncertain,
             "modelUnavailable": self.modelUnavailable,
         }
 
@@ -100,9 +113,19 @@ def parse_facts(payload: dict[str, Any] | None) -> RequestFacts:
     raw_intent = payload.get("intent")
     intent: Intent = raw_intent if raw_intent in VALID_INTENTS else "other"  # type: ignore[assignment]
 
-    requires_onsite = payload.get("requiresOnsite")
-    if not isinstance(requires_onsite, bool):
-        requires_onsite = None
+    def _tristate(key: str) -> bool | None:
+        """A real boolean, or None when the model did not say.
+
+        None means "not reported", which the decision treats cautiously. It is never
+        collapsed to False: a missing answer is not the same as a negative one.
+        """
+        value = payload.get(key)
+        return value if isinstance(value, bool) else None
+
+    requires_onsite = _tristate("requiresOnsite")
+    refers_to_previous_work = _tristate("refersToPreviousWork")
+    is_safety_answer = _tristate("isSafetyAnswer")
+    safety_answer_uncertain = _tristate("safetyAnswerUncertain")
 
     raw_same_fault = payload.get("sameFaultAsExisting")
     same_fault = (
@@ -121,5 +144,8 @@ def parse_facts(payload: dict[str, Any] | None) -> RequestFacts:
         sameFaultAsExisting=same_fault,
         sameFaultReference=str(same_fault_ref).strip() if isinstance(same_fault_ref, str) else "",
         requiresOnsite=requires_onsite,
+        refersToPreviousWork=refers_to_previous_work,
+        isSafetyAnswer=is_safety_answer,
+        safetyAnswerUncertain=safety_answer_uncertain,
         modelUnavailable=False,
     )

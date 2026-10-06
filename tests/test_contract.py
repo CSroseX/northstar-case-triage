@@ -39,7 +39,8 @@ _STUB_MODEL_ANSWER = {
 
 
 def _stub_handler(request: httpx.Request) -> httpx.Response:
-    if request.method == "POST" or request.url.params.get("route") == "model":
+    # Route on the route parameter, not the verb: the work-order write is also a POST.
+    if request.url.params.get("route") == "model":
         return httpx.Response(
             200,
             json={

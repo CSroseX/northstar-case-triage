@@ -218,7 +218,7 @@ symptoms: _Main DG service already raised from the portal_
 **Status: `duplicate_detected`** (expected `duplicate_detected`)
 
 Why:
-- This reports a fault already open on this asset; it is linked to the existing work order rather than opening a second one _(OPS-INTAKE-003)_
+- This reports a fault already raised for this equipment, within the 4-hour response window of the earlier request; it is linked to that request rather than opening a second one _(OPS-INTAKE-003)_
 - Linked to: WO-9294, REQ-8254, REQ-V001
 - ⚠️ Linked to the existing job; no second work order created
 
@@ -240,6 +240,7 @@ Why:
 - Recommended technician: **TECH-02 Neha Iyer** (Bengaluru) — provisional until re-checked at creation time
 - ⚠️ Technician is a recommendation; availability must be re-checked immediately before the work order is created
 - ⚠️ Response commitment: 4 hours
+- ⚠️ TECH-05 is already assigned to WO-9290 on this equipment (assigned): "Freezer plant 2 compressor cycling". A coordinator may prefer to combine the visits.
 
 _Customer rules the hazard out themselves, so normal triage continues._
 

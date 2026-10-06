@@ -72,6 +72,8 @@ class AssetEvidence:
     qualifiedTechnicians: list[TechnicianMatch] = field(default_factory=list)
     openWorkOrders: list[dict[str, Any]] = field(default_factory=list)
     recentRequests: list[dict[str, Any]] = field(default_factory=list)
+    # Closed jobs on this asset, for requests that ask about earlier work.
+    assetHistory: list[dict[str, Any]] = field(default_factory=list)
 
     # Things we noticed but did not interpret.
     gaps: list[str] = field(default_factory=list)
@@ -94,6 +96,7 @@ class AssetEvidence:
             "qualifiedTechnicians": [t.as_dict() for t in self.qualifiedTechnicians],
             "openWorkOrders": self.openWorkOrders,
             "recentRequests": self.recentRequests,
+            "assetHistory": self.assetHistory,
             "gaps": self.gaps,
             "sourceReferences": self.sourceReferences,
             "failedLookups": self.failedLookups,
@@ -367,5 +370,16 @@ async def gather_asset_evidence(
         logger.warning("evidence: requests lookup failed (%s)", exc.detail)
         evidence.failedLookups.append("requests")
         evidence.gaps.append(f"Request lookup failed: {exc.detail}")
+
+    # Closed jobs on this asset, for requests that point back to earlier work.
+    # This route does honour q=, so the filter is server-side.
+    try:
+        history = await client.work_order_history(q=asset_id)
+        evidence.assetHistory = [h for h in history if h.get("assetId") == asset_id]
+        evidence.sourceReferences.append({"type": "route", "id": "work-order-history"})
+    except LookupFailure as exc:
+        logger.warning("evidence: work-order-history lookup failed (%s)", exc.detail)
+        evidence.failedLookups.append("work-order-history")
+        evidence.gaps.append(f"Work-order history lookup failed: {exc.detail}")
 
     return evidence

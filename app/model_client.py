@@ -54,7 +54,13 @@ Reply with JSON only, using exactly these keys:
    when the sender frames it as a request for a particular kind of engineer, for a
    particular day, or as a scheduling question. Use "planned_service" only when nothing is
    reported as currently faulty.
-"symptomSummary": one short line describing the problem in the sender's own terms.
+"symptomSummary": a SHORT PHRASE naming the problem, in the sender's own terms, that can be
+   dropped into the sentence "Issue: ___". Six words or fewer. No equipment name, no asset
+   id, no site, no full sentence and no trailing full stop — those are added separately.
+   Good: "freezer has stopped cooling", "rattling noise from the unit", "quarterly service
+   due", "weak airflow", "controller fault 118". Bad: "The freezer plant 2 (AST-302) at the
+   Hoskote cold store has stopped cooling." or "Quarterly service requested for Main DG; no
+   fault reported."
 "referencedRequests": array of earlier request or job identifiers the message points to,
    e.g. ["REQ-V001", "WO-9294"]. [] if none.
 "requiresOnsite": true if the sender asks for someone to attend in person, false if the
@@ -70,6 +76,20 @@ Reply with JSON only, using exactly these keys:
    "unclear"   - the message could plausibly be either and you cannot tell from the words.
    Do not answer "same" merely because the equipment matches.
 "sameFaultReference": the identifier it matches when the answer is "same", otherwise "".
+"refersToPreviousWork": true ONLY when the message asks us to look at work Northstar has
+   already carried out on this equipment — "review the June visit", "compare with the July
+   work order", "check what was done last time", "this is happening again after your last
+   visit". It must be a request to revisit completed work. Set it false for everything
+   else, including: a reply to a question we asked, a chase-up on a request that has not
+   been attended yet, and a message that merely says a fault is happening "again" without
+   asking us to look at the earlier job. If "isSafetyAnswer" is true, this is always false.
+"isSafetyAnswer": true if this message reads as a reply to a safety question somebody asked
+   the sender — a short answer about whether there is smoke, a smell, water or anyone
+   unwell — rather than a new request. false otherwise.
+"safetyAnswerUncertain": only meaningful when "isSafetyAnswer" is true. true when the reply
+   leaves the hazard unresolved — "not sure", "can't tell", "I don't know", "nobody has
+   checked yet", or any answer that does not actually settle the question. false when the
+   reply clearly settles it either way.
 
 Report what the message says. Do not infer a hazard that is not described, and do not
 explain away one that is."""

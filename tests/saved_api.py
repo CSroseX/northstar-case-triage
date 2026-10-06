@@ -40,13 +40,54 @@ def offline_settings() -> Settings:
 
 
 def saved_handler(request: httpx.Request) -> httpx.Response:
+    """Reads come from the saved files; a work-order POST is simulated idempotently."""
     route = request.url.params.get("route", "")
+
+    if request.method == "POST" and route == "work-orders":
+        return _created_work_order(request)
+
     payload = saved(route)
     q = request.url.params.get("q")
     if q and route in FILTERING_ROUTES:
         needle = q.lower()
         payload = {"results": [r for r in payload["results"] if needle in json.dumps(r).lower()]}
     return httpx.Response(200, json=payload)
+
+
+# Work orders "created" during a test run, keyed by externalEventId, so a repeated event
+# returns the original with duplicate: true — the real API's documented behaviour.
+_CREATED: dict[str, dict] = {}
+
+
+def reset_created_work_orders() -> None:
+    _CREATED.clear()
+
+
+def created_work_orders() -> dict[str, dict]:
+    return dict(_CREATED)
+
+
+def _created_work_order(request: httpx.Request) -> httpx.Response:
+    body = json.loads(request.content)
+    event_id = str(body.get("externalEventId") or "")
+
+    if event_id in _CREATED:
+        # Repeating an accepted externalEventId returns the original work order.
+        return httpx.Response(200, json={"workOrder": _CREATED[event_id], "duplicate": True})
+
+    work_order = {
+        "id": f"WO-TEST-{len(_CREATED) + 1:03d}",
+        "request_id": body.get("requestId"),
+        "asset_id": body.get("assetId"),
+        "technician_id": body.get("technicianId"),
+        "status": "assigned",
+        "summary": "Created by the triage service",
+        "created_at": "2026-09-20T10:00:00.000Z",
+        "source": "triage",
+        "externalEventId": event_id,
+    }
+    _CREATED[event_id] = work_order
+    return httpx.Response(200, json={"workOrder": work_order, "duplicate": False})
 
 
 def offline_client(attempts: int = 3) -> NorthstarClient:

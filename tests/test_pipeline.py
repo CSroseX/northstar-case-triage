@@ -12,11 +12,17 @@ from jsonschema import Draft202012Validator
 
 from app.identifiers import find_equipment_ids, find_request_references
 from app.model_client import ModelClient
+from app.facts import RequestFacts
 from app.models import CaseInput
 from app.northstar_client import NorthstarClient
 from app.pipeline import process_case
 from tests.case_fixtures import ALL_CASES, Case
-from tests.saved_api import offline_settings, saved_handler
+from tests.saved_api import (
+    created_work_orders,
+    offline_settings,
+    reset_created_work_orders,
+    saved_handler,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -92,6 +98,9 @@ def _facts_payload(case: Case) -> dict[str, Any]:
         "requiresOnsite": facts.requiresOnsite,
         "sameFaultAsExisting": facts.sameFaultAsExisting,
         "sameFaultReference": facts.sameFaultReference,
+        "refersToPreviousWork": facts.refersToPreviousWork,
+        "isSafetyAnswer": facts.isSafetyAnswer,
+        "safetyAnswerUncertain": facts.safetyAnswerUncertain,
     }
 
 
@@ -99,7 +108,8 @@ def _routed_handler(model_payload: dict[str, Any]):
     """Serves saved Northstar records, and a fixed model answer for gateway posts."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "POST" or request.url.params.get("route") == "model":
+        # Route on the route parameter, not the verb: the work-order write is also a POST.
+        if request.url.params.get("route") == "model":
             return _model_answer(model_payload)
         return saved_handler(request)
 
@@ -142,14 +152,40 @@ async def test_result_carries_the_model_trace_id() -> None:
     assert result.audit.modelTraceIds == ["trace-pipeline"]
 
 
-async def test_dispatch_result_records_a_recommendation_not_a_booking() -> None:
+async def test_dispatch_creates_the_work_order() -> None:
+    reset_created_work_orders()
     case = next(c for c in ALL_CASES if c.id == "VIS-006")
     result = await _run(case)
 
     assert result.status == "dispatch_ready"
     assert result.workOrder is not None
-    assert result.workOrder["created"] is False
-    assert result.workOrder["recommendedTechnicianId"]
+    # A real work order, not a recommendation stub.
+    assert result.workOrder["id"].startswith("WO-TEST-")
+    assert result.workOrder["assetId"] == "AST-302"
+    assert result.workOrder["technicianId"]
+    assert any(a.type == "work_order_created" for a in result.nextActions)
+
+
+async def test_the_same_event_id_creates_only_one_work_order() -> None:
+    """A redelivered event must return the original job, never raise a second."""
+    reset_created_work_orders()
+    case = next(c for c in ALL_CASES if c.id == "VIS-006")
+
+    first = await _run(case)
+    second = await _run(case)  # same event id, built from case.id
+
+    assert first.workOrder["id"] == second.workOrder["id"]
+    assert len(created_work_orders()) == 1
+
+
+async def test_only_dispatch_ready_writes_a_work_order() -> None:
+    """Nothing else in the flow may create a job."""
+    reset_created_work_orders()
+    for case in ALL_CASES:
+        if case.expectedStatus == "dispatch_ready":
+            continue
+        await _run(case)
+    assert created_work_orders() == {}
 
 
 async def test_classification_is_filled_from_the_facts() -> None:
@@ -269,3 +305,156 @@ def test_transport_repeat_returns_the_stored_result(monkeypatch) -> None:
     assert first.status_code == second.status_code == 200
     assert first.json() == second.json()
     assert calls["n"] == 1  # decided once, replayed on the repeat
+
+
+async def test_a_non_hazard_escalation_is_not_labelled_a_safety_risk() -> None:
+    """A request to review earlier work goes to a human, but is not a hazard."""
+    case = Case(
+        id="PREV-WORK",
+        assetId="AST-1001",
+        receivedAt="2026-09-20T11:19:00Z",
+        expectedStatus="human_escalation_required",
+        subject="AHU 2 airflow weak",
+        body=(
+            "Sortation hall AHU 2, AST-1001, has weak airflow again. Cooling remains "
+            "within range. Please review the June visit before assigning this."
+        ),
+        facts=RequestFacts(
+            assetMentions=["AST-1001"],
+            safetySignal="absent",
+            intent="breakdown",
+            symptomSummary="weak airflow again",
+            requiresOnsite=True,
+            sameFaultAsExisting="different",
+            refersToPreviousWork=True,
+        ),
+    )
+    result = await _run(case)
+
+    assert result.status == "human_escalation_required"
+    # The escalation is procedural, not a hazard.
+    assert result.classification.safetyRisk is False
+    assert result.classification.category != "safety"
+    assert result.classification.urgency != "immediate"
+
+
+async def test_a_real_hazard_is_still_labelled_a_safety_risk() -> None:
+    case = next(c for c in ALL_CASES if c.id == "VIS-003")
+    result = await _run(case)
+
+    assert result.classification.safetyRisk is True
+    assert result.classification.category == "safety"
+    assert result.classification.urgency == "immediate"
+
+
+async def test_an_unanswered_safety_question_is_still_a_safety_risk() -> None:
+    """clarification_required for safety reasons must not read as hazard-free."""
+    case = next(c for c in ALL_CASES if c.id == "HAZARD-MISSED")
+    result = await _run(case)
+
+    assert result.status == "clarification_required"
+    assert result.classification.safetyRisk is True
+
+
+async def test_a_customer_reply_never_quotes_an_internal_identifier() -> None:
+    """Only references the customer would recognise (WO-…, REQ-…) may appear."""
+    import re as _re
+
+    reset_created_work_orders()
+    for case in ALL_CASES:
+        result = await _run(case)
+        draft = result.customerResponseDraft
+        assert not _re.search(r"[0-9a-f]{8}-[0-9a-f]{4}-", draft), draft
+        for banned in ("POL-", "OPS-", "SYS-", "confidence", "traceId", "HTTP "):
+            assert banned not in draft, f"{banned} leaked into: {draft}"
+
+
+async def test_every_reply_uses_the_three_line_format() -> None:
+    reset_created_work_orders()
+    for case in ALL_CASES:
+        draft = (await _run(case)).customerResponseDraft
+        lines = draft.split("\n")
+        assert lines[0] == "We've received your request."
+        assert any(line.startswith("Issue: ") for line in lines), draft
+        assert any(line.startswith("Next step: ") for line in lines), draft
+
+
+async def test_the_issue_line_does_not_repeat_the_equipment_name() -> None:
+    """The model supplies a short phrase; we append the equipment exactly once."""
+    case = next(c for c in ALL_CASES if c.id == "VIS-006")
+    draft = (await _run(case)).customerResponseDraft
+    issue = next(l for l in draft.split("\n") if l.startswith("Issue: "))
+    assert issue.count("AST-302") == 1
+    assert issue.count("Freezer plant 2") == 1
+
+
+async def test_a_safety_answer_is_never_treated_as_a_previous_work_request() -> None:
+    """The model sets refersToPreviousWork liberally on short replies; code overrides it."""
+    case = Case(
+        id="SAFETY-REPLY",
+        assetId="AST-302",
+        receivedAt="2026-09-20T13:00:00Z",
+        expectedStatus="human_escalation_required",
+        subject="Re: checking before we continue",
+        body="Not sure, nobody has been down to the plant room to look yet.",
+        facts=RequestFacts(
+            assetMentions=["AST-302"],
+            safetySignal="ambiguous",
+            safetyQuote="Not sure, nobody has been down to the plant room to look yet",
+            intent="breakdown",
+            symptomSummary="cannot confirm whether there is a hazard",
+            isSafetyAnswer=True,
+            safetyAnswerUncertain=True,
+            refersToPreviousWork=True,  # the model over-sets this
+        ),
+    )
+    result = await _run(case)
+
+    assert result.status == "human_escalation_required"
+    assert any(a.type == "safety_answer_unresolved" for a in result.nextActions)
+    assert not any(a.type == "refers_to_previous_work" for a in result.nextActions)
+    # The safety wording must be present, not a "reviewing previous visits" line.
+    assert "keep people away" in result.customerResponseDraft
+
+
+async def test_a_dispatch_reply_quotes_a_readable_reference_never_a_uuid() -> None:
+    """Created work orders come back with a UUID id, so the request id is quoted instead."""
+    reset_created_work_orders()
+    case = next(c for c in ALL_CASES if c.id == "VIS-006")
+    result = await _run(case)
+
+    draft = result.customerResponseDraft
+    assert result.status == "dispatch_ready"
+    assert "An engineer has been assigned" in draft
+    # The mock returns a WO- style id, which is preferred when present.
+    assert "WO-TEST-001" in draft
+
+
+async def test_a_uuid_work_order_id_falls_back_to_the_request_id() -> None:
+    """What the real API actually returns: a UUID and no WO- reference."""
+    from app.decide import Decision, Reason
+    from app.evidence import AssetEvidence
+    from app.replies import build_customer_reply
+
+    decision = Decision(
+        status="dispatch_ready",
+        reasons=[Reason("coverage_confirmed", "covered", "POL-CONTRACT-002")],
+    )
+    evidence = AssetEvidence(
+        outcome="resolved",
+        assetId="AST-302",
+        asset={"nickname": "Freezer plant 2", "coverage": "premium"},
+        site={"name": "Hoskote cold store"},
+        agreement={"responseHours": 4, "contractRef": "CON-027-A1"},
+    )
+    facts = RequestFacts(intent="breakdown", symptomSummary="stopped cooling")
+    draft = build_customer_reply(
+        facts,
+        evidence,
+        decision,
+        work_order={"id": "8180a1c5-a030-4ddc-8d7a-30190d5e464a", "requestId": "REQ-V006"},
+    )
+
+    assert "8180a1c5" not in draft
+    assert "REQ-V006" in draft
+    assert "within 4 hours" in draft

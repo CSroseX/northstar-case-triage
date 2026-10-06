@@ -1,0 +1,64 @@
+[
+  {
+    "id": "REQ-8275",
+    "status": "human_escalation_required",
+    "draft": "We've received your request.\nIssue: weak airflow \u2014 Sortation hall AHU 2 (AST-1001) \u2014 Nelamangala fulfilment centre\nNext step: A coordinator is reviewing the previous visits to this equipment before we arrange anything further, so we build on that work rather than repeating it. We will come back to you shortly.",
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "nextActions": [
+      "escalate_to_duty_owner",
+      "coverage_confirmed",
+      "refers_to_previous_work"
+    ]
+  },
+  {
+    "id": "REQ-8283",
+    "status": "human_escalation_required",
+    "draft": "We've received your request.\nIssue: pressure oscillating during long runs \u2014 Press line compressor (AST-1201) \u2014 Rajajinagar packaging plant\nNext step: A coordinator is reviewing the previous visits to this equipment before we arrange anything further, so we build on that work rather than repeating it. We will come back to you shortly.",
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "nextActions": [
+      "escalate_to_duty_owner",
+      "coverage_confirmed",
+      "refers_to_previous_work"
+    ]
+  },
+  {
+    "id": "REQ-SAFETY-A",
+    "status": "human_escalation_required",
+    "draft": "We've received your request.\nIssue: still showing the alarm \u2014 Freezer plant 2 (AST-302) \u2014 Hoskote cold store\nYou told us: \"Not sure, nobody has been down to the plant room to look yet.\"\nNext step: Please keep people away from the equipment and do not attempt to operate or investigate it. This has been escalated to our duty team, who will contact you directly.",
+    "classification": {
+      "category": "safety",
+      "urgency": "immediate",
+      "safetyRisk": true,
+      "confidence": 0.4
+    },
+    "nextActions": [
+      "escalate_to_duty_owner",
+      "safety_answer_unresolved"
+    ]
+  },
+  {
+    "id": "REQ-SAFETY-B",
+    "status": "duplicate_detected",
+    "draft": "We've received your request.\nIssue: stopped cooling \u2014 Freezer plant 2 (AST-302) \u2014 Hoskote cold store\nNext step: This matches a request we already have open for this equipment (reference WO-9290), so we have linked your message to it rather than raising a second job. The team handling it will keep you updated.",
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "nextActions": [
+      "link_to_existing_job",
+      "same_fault_already_open"
+    ]
+  }
+]

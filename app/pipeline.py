@@ -16,12 +16,15 @@ No work order is created here: that is the act step, and it is not wired yet.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import Any
 
-from .decide import Decision, decide
+from .booking import book_work_order
+from .decide import Decision, Reason, decide
 from .evidence import AssetEvidence, gather_asset_evidence
 from .facts import RequestFacts
 from .identifiers import find_equipment_ids
+from .replies import build_customer_reply
 from .models import (
     Audit,
     CaseInput,
@@ -80,6 +83,42 @@ DEFAULT_DRAFT = (
     "request and will come back to you shortly."
 )
 
+# Status -> the action a coordinator should take, stated first in nextActions.
+PRIMARY_ACTION: dict[str, tuple[str, str]] = {
+    "human_escalation_required": (
+        "escalate_to_duty_owner",
+        "Route to the duty owner for immediate human review; no dispatch and no advice",
+    ),
+    "clarification_required": (
+        "request_information",
+        "Ask the customer for the information needed to decide the next step",
+    ),
+    "account_review_required": (
+        "route_to_account_review",
+        "Hold for account review; coverage is not confirmed from the agreement record",
+    ),
+    "duplicate_detected": (
+        "link_to_existing_job",
+        "Link this request to the existing job; do not raise a second work order",
+    ),
+    "dispatch_ready": (
+        "dispatch_technician",
+        "Attend the fault under the agreement's response commitment",
+    ),
+    "resource_escalation_required": (
+        "escalate_to_dispatch_lead",
+        "Resource decision for the dispatch lead; no placeholder work order",
+    ),
+    "covered_action": (
+        "schedule_visit",
+        "Schedule the covered visit; the work order is raised when it is booked",
+    ),
+    "failed": (
+        "route_to_coordinator",
+        "A required record could not be read; a coordinator must review this request",
+    ),
+}
+
 # Intent -> the category reported on the case result.
 CATEGORY_BY_INTENT: dict[str, str] = {
     "planned_service": "planned_service",
@@ -90,12 +129,29 @@ CATEGORY_BY_INTENT: dict[str, str] = {
 }
 
 
+# Reasons that mean this escalation really is about a hazard. Not every human escalation
+# is one: a request to review earlier work also goes to a human, and labelling that an
+# immediate safety risk would put false alarms into anything keyed on safetyRisk.
+SAFETY_REASON_CODES = frozenset(
+    {
+        "safety_signal_affirmed",
+        "safety_answer_unresolved",
+        "safety_signal_ambiguous",
+        "safety_wording_unconfirmed",
+        "safety_denial_unverified",
+        "safety_unverified",
+    }
+)
+
+
 def _classification(facts: RequestFacts, decision: Decision) -> Classification:
     """Derive the classification from the facts and the decision."""
-    safety_risk = decision.status == "human_escalation_required"
+    safety_risk = any(r.code in SAFETY_REASON_CODES for r in decision.reasons)
 
-    if safety_risk:
+    if safety_risk and decision.status == "human_escalation_required":
         urgency = "immediate"
+    elif decision.status == "human_escalation_required":
+        urgency = "high"
     elif decision.status == "resource_escalation_required":
         urgency = "high"
     elif facts.intent == "breakdown":
@@ -184,16 +240,35 @@ def build_case_result(
     decision: Decision,
     trace_ids: list[str],
     extra_warnings: list[str] | None = None,
+    booked_work_order: dict[str, Any] | None = None,
 ) -> CaseResult:
     """Assemble the structured first action."""
-    next_actions = [
-        NextAction(type=reason.code, reason=reason.detail) for reason in decision.reasons
-    ] or [NextAction(type="route_to_coordinator", reason="No automated action was determined")]
-
+    # Lead with the action this status actually calls for, then the reasons behind it,
+    # so a coordinator reads what to do before why.
+    next_actions: list[NextAction] = []
+    primary = PRIMARY_ACTION.get(decision.status)
     if decision.safetyQuestion:
-        next_actions.insert(
-            0, NextAction(type="ask_safety_question", reason=decision.safetyQuestion)
+        next_actions.append(
+            NextAction(type="ask_safety_question", reason=decision.safetyQuestion)
         )
+    elif primary:
+        next_actions.append(NextAction(type=primary[0], reason=primary[1]))
+
+    if booked_work_order and booked_work_order.get("id"):
+        next_actions.append(
+            NextAction(
+                type="work_order_created",
+                reason=f"Work order {booked_work_order['id']} was created for this request",
+            )
+        )
+
+    next_actions.extend(
+        NextAction(type=reason.code, reason=reason.detail) for reason in decision.reasons
+    )
+    if not next_actions:
+        next_actions = [
+            NextAction(type="route_to_coordinator", reason="No automated action was determined")
+        ]
 
     source_references: list[Any] = [
         {"type": "request", "id": case.requestId, "channel": case.channel}
@@ -216,8 +291,8 @@ def build_case_result(
         # POL-SAFETY-001: keep the customer's exact words, not a generic label.
         warnings.append(f'Reported wording: "{decision.safetyQuote}"')
 
-    work_order: dict[str, Any] | None = None
-    if decision.recommendedTechnician:
+    work_order = booked_work_order
+    if work_order is None and decision.recommendedTechnician:
         # A recommendation, not a booking. Nothing has been created.
         work_order = {
             "created": False,
@@ -237,9 +312,12 @@ def build_case_result(
         classification=_classification(facts, decision),
         entitlement=_entitlement(evidence, decision),
         nextActions=next_actions,
-        customerResponseDraft=PLACEHOLDER_DRAFTS.get(decision.status, DEFAULT_DRAFT),
+        customerResponseDraft=build_customer_reply(facts, evidence, decision, booked_work_order),
         missingInformation=decision.missingInformation,
         workOrder=work_order,
+        # Extra, schema-permitted context for a coordinator (additionalProperties: true).
+        alternativeTechnicians=[t.as_dict() for t in decision.alternativeTechnicians],
+        relatedHistory=decision.relatedHistory,
         audit=Audit(
             sourceReferences=source_references,
             modelTraceIds=trace_ids,
@@ -290,14 +368,47 @@ async def process_case(
     decision = decide(facts, evidence, text)
     logger.info("request=%s -> status=%s", case.requestId, decision.status)
 
-    # 5. Respond.
+    # 5. Act. The only write this service makes, and only for a dispatch-ready case.
+    booked: dict[str, Any] | None = None
+    extra_warnings = list(result.warnings or [])
+
+    if decision.status == "dispatch_ready":
+        outcome = await book_work_order(
+            northstar, decision, evidence, case.requestId, event_id
+        )
+        extra_warnings.extend(outcome.warnings)
+
+        if outcome.status:
+            # The booking could not go ahead: the outcome's status replaces the decision's.
+            logger.info(
+                "request=%s dispatch not completed -> %s", case.requestId, outcome.status
+            )
+            decision = replace(
+                decision,
+                status=outcome.status,
+                reasons=decision.reasons
+                + [Reason(code, detail, policy) for code, detail, policy in outcome.reasons],
+                recommendedTechnician=(
+                    outcome.technician if outcome.status != "failed" else None
+                ),
+            )
+        else:
+            booked = outcome.workOrder
+            if outcome.technician:
+                decision = replace(decision, recommendedTechnician=outcome.technician)
+            logger.info(
+                "request=%s work order=%s duplicate=%s",
+                case.requestId,
+                (booked or {}).get("id"),
+                outcome.duplicate,
+            )
+
+    # 6. Respond.
     return build_case_result(
-        case, facts, evidence, decision, result.traceIds, result.warnings or []
+        case, facts, evidence, decision, result.traceIds, extra_warnings, booked
     )
 
 
 def replace_asset_mentions(facts: RequestFacts, equipment_ids: list[str]) -> RequestFacts:
     """Trust the regex over the model for exact identifiers."""
-    from dataclasses import replace
-
     return replace(facts, assetMentions=equipment_ids)

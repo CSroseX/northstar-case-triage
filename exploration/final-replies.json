@@ -1,0 +1,127 @@
+[
+  {
+    "id": "VIS-001",
+    "status": "covered_action",
+    "draft": "We've received your request.\nIssue: quarterly service due \u2014 Main DG (AST-101) \u2014 Whitefield warehouse\nNext step: This is covered under agreement CON-012-A2 and we are scheduling the visit now. We will come back to you shortly to agree a date and time.",
+    "classification": {
+      "category": "planned_service",
+      "urgency": "routine",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "nextActions": [
+      "schedule_visit",
+      "coverage_confirmed",
+      "planned_not_dispatched"
+    ]
+  },
+  {
+    "id": "VIS-002",
+    "status": "clarification_required",
+    "draft": "We've received your request.\nIssue: not pulling down below -12\u00b0C\nNext step: Could you confirm asset identifier, or the equipment name and location as labelled on site? As soon as we have that we will take this forward.",
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.5
+    },
+    "nextActions": [
+      "request_information",
+      "asset_not_identified"
+    ]
+  },
+  {
+    "id": "VIS-003",
+    "status": "human_escalation_required",
+    "draft": "We've received your request.\nIssue: strong diesel smell and vibration\nYou told us: \"Security reports a strong diesel smell and unusual vibration near the backup generator.\"\nNext step: Please keep people away from the equipment and do not attempt to operate or investigate it. This has been escalated to our duty team, who will contact you directly.",
+    "classification": {
+      "category": "safety",
+      "urgency": "immediate",
+      "safetyRisk": true,
+      "confidence": 0.9
+    },
+    "nextActions": [
+      "escalate_to_duty_owner",
+      "safety_signal_affirmed"
+    ]
+  },
+  {
+    "id": "VIS-004",
+    "status": "account_review_required",
+    "draft": "We've received your request.\nIssue: compressor not listed in portal\nNext step: We are checking the service agreement record for this equipment before we confirm what happens next. We will come back to you as soon as that is complete.",
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "nextActions": [
+      "route_to_account_review",
+      "asset_not_on_record"
+    ]
+  },
+  {
+    "id": "VIS-005",
+    "status": "duplicate_detected",
+    "draft": "We've received your request.\nIssue: same AST-101 visit \u2014 Main DG (AST-101) \u2014 Whitefield warehouse\nNext step: This matches a request we already have open for this equipment (reference WO-9294), so we have linked your message to it rather than raising a second job. The team handling it will keep you updated.",
+    "classification": {
+      "category": "follow_up",
+      "urgency": "normal",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "nextActions": [
+      "link_to_existing_job",
+      "same_fault_already_open"
+    ]
+  },
+  {
+    "id": "VIS-006",
+    "status": "dispatch_ready",
+    "draft": "We've received your request.\nIssue: stopped cooling \u2014 Freezer plant 2 (AST-302) \u2014 Hoskote cold store\nNext step: An engineer has been assigned to attend. We will be with you within 4 hours. We will confirm the visit details shortly.",
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "nextActions": [
+      "dispatch_technician",
+      "work_order_created",
+      "coverage_confirmed",
+      "technician_matched"
+    ]
+  },
+  {
+    "id": "VIS-007",
+    "status": "resource_escalation_required",
+    "draft": "We've received your request.\nIssue: electrical-certified technician needed \u2014 Clinic DG (AST-205) \u2014 Whitefield clinic\nNext step: This needs an engineer with specific qualifications for your equipment, and our dispatch team is arranging that now. We will contact you with the arrangements once they are confirmed.",
+    "classification": {
+      "category": "breakdown",
+      "urgency": "high",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "nextActions": [
+      "escalate_to_dispatch_lead",
+      "coverage_confirmed",
+      "no_available_qualified_technician"
+    ]
+  },
+  {
+    "id": "VIS-008",
+    "status": "covered_action",
+    "draft": "We've received your request.\nIssue: coverage confirmation requested \u2014 Main DG (AST-101) \u2014 Whitefield warehouse\nNext step: We can confirm Main DG (AST-101) is covered under agreement CON-012-A2. It carries a response commitment of 4 hours. Please let us know if you would like us to arrange a visit.",
+    "classification": {
+      "category": "coverage_enquiry",
+      "urgency": "normal",
+      "safetyRisk": false,
+      "confidence": 0.9
+    },
+    "nextActions": [
+      "schedule_visit",
+      "coverage_confirmed",
+      "planned_not_dispatched"
+    ]
+  }
+]

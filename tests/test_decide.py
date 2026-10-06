@@ -390,21 +390,63 @@ async def test_two_assets_mentioned_is_clarification() -> None:
     assert any(r.code == "ambiguous_asset_reference" for r in result.reasons)
 
 
-async def test_unclear_duplicate_goes_to_a_human() -> None:
-    """A follow-up against an open job we cannot match either way is a human's call."""
+async def test_an_unclear_repeat_inside_the_response_window_is_a_duplicate() -> None:
+    """A follow-up while we are still inside the promised window is the same incident."""
     facts = RequestFacts(
         assetMentions=["AST-101"],
         safetySignal="absent",
         intent="follow_up",
         symptomSummary="checking on the job raised earlier",
-        referencedRequests=["REQ-9999"],  # not in the records
+        referencedRequests=[],
+        sameFaultAsExisting="unclear",
     )
-    ev = await _evidence("AST-101", "2026-09-20T09:24:00Z")
+    # REQ-V001 opened this conversation at 08:42, 64 minutes before, inside CON-012-A2's 4h.
+    ev = await _evidence("AST-101", "2026-09-20T09:46:00Z")
     result = decide(facts, ev, "Any update on the job we raised earlier?")
 
-    assert result.status == "clarification_required"
-    assert any(r.code == "possible_duplicate_unclear" for r in result.reasons)
-    assert result.linkedWorkOrders == ["WO-9294"]
+    assert result.status == "duplicate_detected"
+    # Linked to the original report, not the most recent chase.
+    assert "REQ-V001" in result.linkedRequests
+
+
+async def test_a_repeat_after_the_response_window_goes_to_a_human() -> None:
+    """Outside the window it is a coordinator's call, and we never claim a missed promise."""
+    facts = RequestFacts(
+        assetMentions=["AST-101"],
+        safetySignal="absent",
+        intent="follow_up",
+        symptomSummary="still waiting on the Main DG job",
+        referencedRequests=[],
+        sameFaultAsExisting="same",
+    )
+    # 09:24 + 4h window; this arrives the next morning, long after it closed.
+    ev = await _evidence("AST-101", "2026-09-21T09:00:00Z")
+    result = decide(facts, ev, "Still waiting on the Main DG job from yesterday.")
+
+    assert result.status == "human_escalation_required"
+    assert any(r.code == "follow_up_after_response_window" for r in result.reasons)
+    # The wording must not assert that anyone missed anything.
+    joined = " ".join(r.detail for r in result.reasons).lower()
+    assert "missed" not in joined and "breach" not in joined
+
+
+async def test_a_repeat_with_no_response_window_goes_to_a_human() -> None:
+    """Nothing to judge the timing against, so a human decides."""
+    facts = RequestFacts(
+        assetMentions=["AST-101"],
+        safetySignal="absent",
+        intent="follow_up",
+        symptomSummary="chasing the earlier request",
+        referencedRequests=[],
+        sameFaultAsExisting="same",
+    )
+    ev = await _evidence("AST-101", "2026-09-20T09:46:00Z")
+    # Strip the response commitment: the agreement no longer states one.
+    ev.agreement = {**(ev.agreement or {}), "responseHours": None}
+    result = decide(facts, ev, "Chasing the request we raised earlier.")
+
+    assert result.status == "human_escalation_required"
+    assert any(r.code == "follow_up_window_unknown" for r in result.reasons)
 
 
 async def test_different_fault_on_same_asset_is_not_a_duplicate() -> None:
@@ -458,8 +500,8 @@ async def test_planned_service_is_not_held_by_an_open_job() -> None:
     assert result.status == "covered_action"
 
 
-async def test_a_breakdown_with_an_open_job_and_no_assessment_still_asks_a_human() -> None:
-    """The fallback stays cautious where a fault IS reported."""
+async def test_a_different_fault_continues_through_the_normal_checks() -> None:
+    """When the model says it is a different fault, nothing about the repeat applies."""
     facts = RequestFacts(
         assetMentions=["AST-101"],
         safetySignal="denied",
@@ -467,10 +509,295 @@ async def test_a_breakdown_with_an_open_job_and_no_assessment_still_asks_a_human
         intent="breakdown",
         symptomSummary="generator will not start",
         requiresOnsite=True,
-        sameFaultAsExisting="",
+        sameFaultAsExisting="different",
     )
     ev = await _evidence("AST-101", "2026-09-20T09:46:00Z")
     result = decide(facts, ev, "The generator will not start. There is no smoke or smell.")
 
-    assert result.status == "clarification_required"
-    assert any(r.code == "possible_duplicate_unclear" for r in result.reasons)
+    # Straight through to dispatch: a new problem is treated like any other request.
+    assert result.status == "dispatch_ready"
+
+
+
+# --- earlier work on the equipment (item 3) -----------------------------
+
+
+async def test_a_request_about_previous_work_is_not_dispatched() -> None:
+    """OPS-INTAKE-003: check for the same incident before raising anything new."""
+    facts = RequestFacts(
+        assetMentions=["AST-1001"],
+        safetySignal="denied",
+        safetyQuote="Cooling remains within range",
+        intent="breakdown",
+        symptomSummary="weak airflow again",
+        requiresOnsite=True,
+        sameFaultAsExisting="different",
+        refersToPreviousWork=True,
+    )
+    ev = await _evidence("AST-1001", "2026-09-20T11:19:00Z")
+    result = decide(
+        facts,
+        ev,
+        "AHU 2 airflow weak. Sortation hall AHU 2, AST-1001, has weak airflow again. "
+        "Cooling remains within range. Please review the June visit before assigning this.",
+    )
+
+    assert result.status == "human_escalation_required"
+    assert any(r.code == "refers_to_previous_work" for r in result.reasons)
+    assert result.recommendedTechnician is None
+    # The matching history is attached for the coordinator.
+    assert result.relatedHistory
+    assert all(h["id"] for h in result.relatedHistory)
+
+
+async def test_previous_work_does_not_override_a_coverage_problem() -> None:
+    """Entitlement is still checked first: a suspended account is account review."""
+    facts = RequestFacts(
+        assetMentions=["AST-801"],
+        safetySignal="absent",
+        intent="breakdown",
+        symptomSummary="chiller needs looking at again",
+        requiresOnsite=True,
+        sameFaultAsExisting="different",
+        refersToPreviousWork=True,
+    )
+    ev = await _evidence("AST-801", "2026-09-20T10:51:00Z")
+    result = decide(facts, ev, "Please check what was done last time on AST-801.")
+
+    assert result.status == "account_review_required"
+
+
+# --- answers to our safety question (item 4) ----------------------------
+
+
+async def test_an_uncertain_safety_answer_escalates_rather_than_asking_again() -> None:
+    """Meera: 'not sure' stays with a human, it never drifts back to normal triage."""
+    facts = RequestFacts(
+        assetMentions=["AST-302"],
+        safetySignal="ambiguous",
+        safetyQuote="not sure",
+        intent="breakdown",
+        symptomSummary="cannot confirm whether there is a smell",
+        isSafetyAnswer=True,
+        safetyAnswerUncertain=True,
+    )
+    ev = await _evidence("AST-302", "2026-09-20T09:31:00Z")
+    result = decide(facts, ev, "Not sure, nobody has been down there to check.")
+
+    assert result.status == "human_escalation_required"
+    assert any(r.code == "safety_answer_unresolved" for r in result.reasons)
+    # Never a second question.
+    assert result.safetyQuestion == ""
+
+
+async def test_a_safety_answer_with_an_unreported_certainty_still_escalates() -> None:
+    """A missing safetyAnswerUncertain is treated cautiously, not as 'resolved'."""
+    facts = RequestFacts(
+        assetMentions=["AST-302"],
+        safetySignal="ambiguous",
+        intent="breakdown",
+        symptomSummary="reply to the safety question",
+        isSafetyAnswer=True,
+        safetyAnswerUncertain=None,
+    )
+    ev = await _evidence("AST-302", "2026-09-20T09:31:00Z")
+    result = decide(facts, ev, "Replying about the freezer.")
+
+    assert result.status == "human_escalation_required"
+
+
+async def test_a_clear_safety_answer_returns_to_normal_triage() -> None:
+    """'No smoke or smell, just the alarm' resolves it and triage continues."""
+    facts = RequestFacts(
+        assetMentions=["AST-302"],
+        safetySignal="denied",
+        safetyQuote="No smoke or smell, just the alarm.",
+        intent="breakdown",
+        symptomSummary="alarm only, no hazard",
+        requiresOnsite=True,
+        isSafetyAnswer=True,
+        safetyAnswerUncertain=False,
+        sameFaultAsExisting="different",
+    )
+    ev = await _evidence("AST-302", "2026-09-20T09:31:00Z")
+    result = decide(facts, ev, "No smoke or smell, just the alarm.")
+
+    assert result.status == "dispatch_ready"
+
+
+async def test_a_hazard_word_in_the_answer_escalates_as_a_fresh_signal() -> None:
+    facts = RequestFacts(
+        assetMentions=["AST-302"],
+        safetySignal="affirmed",
+        safetyQuote="there is smoke coming from the panel",
+        intent="breakdown",
+        symptomSummary="smoke from the panel",
+        isSafetyAnswer=True,
+        safetyAnswerUncertain=False,
+    )
+    ev = await _evidence("AST-302", "2026-09-20T09:31:00Z")
+    result = decide(facts, ev, "Checked now - there is smoke coming from the panel.")
+
+    assert result.status == "human_escalation_required"
+    assert any(r.code == "safety_signal_affirmed" for r in result.reasons)
+
+
+# --- alternatives and the en-route warning (item 5) ---------------------
+
+
+async def test_other_available_technicians_are_listed() -> None:
+    facts = RequestFacts(
+        assetMentions=["AST-302"],
+        safetySignal="denied",
+        safetyQuote="There is no smoke, water or unusual smell.",
+        intent="breakdown",
+        symptomSummary="stopped cooling",
+        requiresOnsite=True,
+        sameFaultAsExisting="different",
+    )
+    ev = await _evidence("AST-302", "2026-09-20T09:31:00Z")
+    result = decide(
+        facts, ev, "AST-302 has stopped cooling. There is no smoke, water or unusual smell."
+    )
+
+    assert result.status == "dispatch_ready"
+    assert result.alternativeTechnicians
+    chosen = result.recommendedTechnician.technicianId
+    assert chosen not in [t.technicianId for t in result.alternativeTechnicians]
+    assert all(t.available and t.sameCityAsSite for t in result.alternativeTechnicians)
+
+
+async def test_a_technician_already_on_the_way_is_flagged() -> None:
+    """AST-302 has WO-9290 assigned to TECH-05."""
+    facts = RequestFacts(
+        assetMentions=["AST-302"],
+        safetySignal="denied",
+        safetyQuote="There is no smoke, water or unusual smell.",
+        intent="breakdown",
+        symptomSummary="door seal damaged",
+        requiresOnsite=True,
+        sameFaultAsExisting="different",
+    )
+    ev = await _evidence("AST-302", "2026-09-20T09:31:00Z")
+    result = decide(
+        facts, ev, "The door seal is damaged. There is no smoke, water or unusual smell."
+    )
+
+    assert result.status == "dispatch_ready"
+    assert any("already assigned to WO-9290" in w for w in result.warnings)
+
+
+async def test_an_unclear_follow_up_is_resolved_by_a_recent_request_for_the_asset() -> None:
+    """Email plus portal, minutes apart: the records settle what the wording cannot.
+
+    The second message says "the same AST-101 visit" but quotes no reference, so the
+    model cannot extract one and may answer "unclear". An earlier request for the same
+    asset shortly before is enough to treat it as one incident (OPS-INTAKE-003).
+    """
+    facts = RequestFacts(
+        assetMentions=["AST-101"],
+        safetySignal="absent",
+        intent="follow_up",
+        symptomSummary="follow-up on the Main DG service raised via the portal",
+        referencedRequests=[],
+        sameFaultAsExisting="unclear",
+    )
+    ev = await _evidence("AST-101", "2026-09-20T09:24:00Z")
+    result = decide(
+        facts,
+        ev,
+        "Following up: Main DG service. Kavya raised the Main DG service request from the "
+        "portal a few minutes ago. This email is for the same AST-101 visit.",
+    )
+
+    assert result.status == "duplicate_detected"
+
+
+async def test_an_unclear_follow_up_with_no_recent_request_still_asks_a_human() -> None:
+    """Without a nearby request for the asset, "unclear" stays a human's call."""
+    facts = RequestFacts(
+        assetMentions=["AST-1201"],
+        safetySignal="absent",
+        intent="follow_up",
+        symptomSummary="checking on something raised before",
+        referencedRequests=[],
+        sameFaultAsExisting="unclear",
+        refersToPreviousWork=False,
+    )
+    # AST-1201 has no open job and no same-day request in the records.
+    ev = await _evidence("AST-1201", "2026-09-20T11:52:00Z")
+    result = decide(facts, ev, "Any update on AST-1201?")
+
+    assert result.status != "duplicate_detected"
+
+
+async def test_repeated_chasing_eventually_reaches_a_human() -> None:
+    """The window runs from the ORIGINAL report, not from the last chase-up.
+
+    A customer who chases every couple of hours must not stay inside the window forever.
+    Measured from the nearest earlier request each chase would reset the clock; measured
+    from the earliest, the conversation crosses the window and reaches a coordinator.
+    """
+    ev = await _evidence("AST-101", "2026-09-20T08:42:00Z")
+    # One original report plus chases at +2h and +4h, all naming the same equipment.
+    ev.recentRequests = [
+        {
+            "requestId": "REQ-ORIG",
+            "receivedAt": "2026-09-20T08:00:00Z",
+            "subject": "Main DG stopped",
+            "body": "AST-101 has stopped.",
+        },
+        {
+            "requestId": "REQ-CHASE-1",
+            "receivedAt": "2026-09-20T10:00:00Z",
+            "subject": "Any update?",
+            "body": "Still waiting on AST-101.",
+        },
+        {
+            "requestId": "REQ-CHASE-2",
+            "receivedAt": "2026-09-20T12:00:00Z",
+            "subject": "Chasing again",
+            "body": "Nobody has been out to AST-101 yet.",
+        },
+    ]
+    facts = RequestFacts(
+        assetMentions=["AST-101"],
+        safetySignal="absent",
+        intent="follow_up",
+        symptomSummary="still waiting",
+        sameFaultAsExisting="same",
+    )
+
+    # Third chase at 13:00. The last chase was an hour ago — inside the 4h window — but
+    # the original report was five hours ago, which is outside it.
+    ev.receivedAt = "2026-09-20T13:00:00Z"
+    result = decide(facts, ev, "Still nobody out to AST-101.")
+
+    assert result.status == "human_escalation_required"
+    assert any(r.code == "follow_up_after_response_window" for r in result.reasons)
+    # Measured from the original, not the most recent chase.
+    assert "REQ-ORIG" in result.linkedRequests
+
+
+async def test_a_first_chase_inside_the_window_is_still_a_duplicate() -> None:
+    """The change must not break the ordinary case: one chase, soon after, is linked."""
+    ev = await _evidence("AST-101", "2026-09-20T09:24:00Z")
+    ev.recentRequests = [
+        {
+            "requestId": "REQ-ORIG",
+            "receivedAt": "2026-09-20T08:42:00Z",
+            "subject": "Main DG scheduled service",
+            "body": "Please arrange the quarterly service for AST-101.",
+        }
+    ]
+    facts = RequestFacts(
+        assetMentions=["AST-101"],
+        safetySignal="absent",
+        intent="follow_up",
+        symptomSummary="same visit",
+        sameFaultAsExisting="same",
+    )
+    result = decide(facts, ev, "This email is for the same AST-101 visit.")
+
+    assert result.status == "duplicate_detected"
+    assert "REQ-ORIG" in result.linkedRequests
