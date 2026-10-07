@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hiring.celecolabs.com/assessment/data/submission.schema.json",
+  "title": "Celeco Outcomes Assessment submission manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "service", "agentSessions", "approximateActiveHours"],
+  "properties": {
+    "version": { "const": "1.0" },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["port", "healthPath", "processPath"],
+      "properties": {
+        "port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+        "healthPath": { "const": "/health" },
+        "processPath": { "const": "/cases/process" }
+      }
+    },
+    "agentSessions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^agent-sessions/.+" }
+    },
+    "approximateActiveHours": { "type": "number", "minimum": 0, "maximum": 48 },
+    "notes": { "type": "string", "maxLength": 2000 }
+  }
+}
+
