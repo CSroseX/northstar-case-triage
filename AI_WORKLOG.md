@@ -123,4 +123,4 @@ identical prompts.
 4. "not sure" fallback answers to the safety question to a person, because Meera said those must never drift back into normal handling.
 5. let the system move to the next qualified technician if the first one becomes busy just before booking, so a valid dispatch doesn't stall on a timing change.
 6. Duplicate requests are flagged duplicated only from the FIRST original request rather than LAST request. Ex: window is 4 hours -> 1st req arrives at 9 am, 2nd at  12 noon -> 2nd req is duplicate. But if 3rd req arrives at 3 pm (out of 4 hour window) then not duplicate. 
-7. 
+7. I chose to process a request with no X-Event-ID but never book from it, rather than reject it, so a missing header can neither fail a case nor create an unkeyed work order.
