@@ -977,3 +977,136 @@ async def test_a_repeat_of_a_request_we_handled_is_linked_not_escalated() -> Non
     assert second.workOrder is None
     assert len(created_work_orders()) == 1
     assert "REQ-FIRST" in json.dumps(second.decisionTrace)
+
+
+# --- recovery after a restart -------------------------------------------
+# The event-id store is in-process, so a restart loses it. A redelivered event that
+# already created a work order must report that job, not be triaged again: the write is
+# idempotent, but a second decision can reach a different status than the one the
+# customer was already given (CLAUDE.md rule 11).
+
+
+async def test_a_redelivered_event_is_recovered_without_a_model_call() -> None:
+    from app.pipeline import handled_requests, recover_dispatched_case
+
+    reset_created_work_orders()
+    handled_requests._by_asset.clear()
+    case = _case_by_id("VIS-006")
+    settings = offline_settings()
+    model_calls: list[str] = []
+
+    def counting_handler(payload: dict[str, Any]):
+        inner = _routed_handler(payload)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.params.get("route") == "model":
+                model_calls.append("call")
+            return inner(request)
+
+        return handler
+
+    request = CaseInput(
+        requestId=case.id,
+        receivedAt=case.receivedAt,
+        channel="portal",
+        sender={"name": "D K", "email": "ops@example.in"},
+        subject=case.subject,
+        body=case.body,
+        attachments=[],
+    )
+
+    # First delivery: triaged normally and a work order is written.
+    transport = httpx.MockTransport(counting_handler(_facts_payload(case)))
+    async with httpx.AsyncClient(transport=transport) as http:
+        first = await process_case(
+            request,
+            NorthstarClient(settings, client=http, attempts=1, backoff_seconds=0.0),
+            ModelClient(settings, client=http, cache_dir=""),
+            event_id="evt-restart",
+        )
+    assert first.status == "dispatch_ready"
+    assert len(model_calls) == 1
+    created_id = first.workOrder["id"]
+
+    # The process restarts: the in-memory store is gone, the records are not.
+    model_calls.clear()
+    async with httpx.AsyncClient(transport=transport) as http:
+        recovered = await recover_dispatched_case(
+            request,
+            NorthstarClient(settings, client=http, attempts=1, backoff_seconds=0.0),
+            "evt-restart",
+        )
+
+    assert recovered is not None
+    assert recovered.status == "dispatch_ready"
+    assert recovered.workOrder["id"] == created_id
+    # The two things that matter: no model call, and no second job.
+    assert model_calls == []
+    assert len(created_work_orders()) == 1
+    assert recovered.audit.modelTraceIds == []
+    assert any("recovered" in w.lower() for w in recovered.audit.warnings)
+
+
+async def test_recovery_returns_none_for_an_event_with_no_work_order() -> None:
+    """An event we have never seen must be triaged normally, not short-circuited."""
+    from app.pipeline import recover_dispatched_case
+
+    reset_created_work_orders()
+    case = _case_by_id("VIS-006")
+    settings = offline_settings()
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(_routed_handler(_facts_payload(case)))
+    ) as http:
+        recovered = await recover_dispatched_case(
+            CaseInput(
+                requestId=case.id,
+                receivedAt=case.receivedAt,
+                channel="portal",
+                sender={"name": "T", "email": "t@example.com"},
+                subject=case.subject,
+                body=case.body,
+                attachments=[],
+            ),
+            NorthstarClient(settings, client=http, attempts=1, backoff_seconds=0.0),
+            "evt-never-seen",
+        )
+
+    assert recovered is None
+
+
+async def test_recovery_returns_none_when_the_lookup_fails() -> None:
+    """Recovery is an optimisation, never a gate: a failed read falls through."""
+    from app.pipeline import recover_dispatched_case
+
+    def failing(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"error": "unavailable"})
+
+    settings = offline_settings()
+    case = _case_by_id("VIS-006")
+    async with httpx.AsyncClient(transport=httpx.MockTransport(failing)) as http:
+        recovered = await recover_dispatched_case(
+            CaseInput(
+                requestId=case.id,
+                receivedAt=case.receivedAt,
+                channel="portal",
+                sender={"name": "T", "email": "t@example.com"},
+                subject=case.subject,
+                body=case.body,
+                attachments=[],
+            ),
+            NorthstarClient(settings, client=http, attempts=1, backoff_seconds=0.0),
+            "evt-anything",
+        )
+
+    assert recovered is None
+
+
+def test_the_normaliser_reads_the_event_id_in_either_spelling() -> None:
+    """Reconciling by event reference depended on a field the normaliser never produced."""
+    from app.evidence import _normalise_work_order
+
+    top_level = {"id": "WO-1", "external_event_id": "evt-a"}
+    nested = {"id": "WO-2", "payload": {"externalEventId": "evt-b"}}
+    assert _normalise_work_order(top_level)["externalEventId"] == "evt-a"
+    assert _normalise_work_order(nested)["externalEventId"] == "evt-b"
+    assert _normalise_work_order({"id": "WO-3"})["externalEventId"] is None

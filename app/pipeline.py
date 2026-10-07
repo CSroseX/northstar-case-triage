@@ -22,7 +22,7 @@ from typing import Any
 
 from .booking import BookingOutcome, book_work_order
 from .decide import Decision, Reason, decide
-from .evidence import AssetEvidence, gather_asset_evidence
+from .evidence import AssetEvidence, _normalise_work_order, gather_asset_evidence
 from .facts import RequestFacts
 from .identifiers import find_equipment_ids, find_request_references, id_appears_in_text
 from .replies import build_customer_reply
@@ -36,7 +36,7 @@ from .models import (
     NextAction,
 )
 from .model_client import ModelClient
-from .northstar_client import NorthstarClient
+from .northstar_client import LookupFailure, NorthstarClient
 from .trace import TraceLog, build_trace
 
 logger = logging.getLogger("northstar.pipeline")
@@ -388,6 +388,91 @@ def build_case_result(
             warnings=warnings,
         ),
     )
+
+
+async def recover_dispatched_case(
+    case: CaseInput,
+    northstar: NorthstarClient,
+    event_id: str,
+) -> CaseResult | None:
+    """Has this event already produced a work order? Then report that, and decide nothing.
+
+    The in-memory event-id store is lost on restart, so after one a redelivered event
+    would be triaged again from scratch. The write itself is safe — Northstar keys on
+    `externalEventId` and answers `duplicate: true` — but re-deciding spends a model call
+    and can reach a *different* status than the one the customer was already told, which
+    is the worse outcome (CLAUDE.md rule 11).
+
+    So the work orders are read back and filtered here for this event id (`q=` is ignored
+    on that route). A hit means the dispatch already happened: return it as
+    `dispatch_ready`, with no model call and no re-decision. A miss, or a failed read,
+    returns None and the caller carries on normally — recovery is an optimisation, never
+    a gate.
+    """
+    try:
+        orders = await northstar.work_orders()
+    except LookupFailure as exc:
+        # Cannot establish it either way: fall through and triage as usual rather than
+        # guessing. At worst the write is idempotent and Northstar returns the original.
+        logger.warning("could not read work orders to recover event=%s: %s", event_id, exc)
+        return None
+
+    for raw in orders:
+        order = _normalise_work_order(raw)
+        if str(order.get("externalEventId") or "") != event_id:
+            continue
+
+        logger.info(
+            "event=%s already has work order %s; recovered without re-deciding",
+            event_id,
+            order.get("id"),
+        )
+        return CaseResult(
+            caseId=case.requestId,
+            status="dispatch_ready",
+            entities=Entities(
+                customerId=order.get("customerId"),
+                siteId=order.get("siteId"),
+                assetId=order.get("assetId"),
+            ),
+            # Reported from the work order, not re-derived: a dispatch_ready job was
+            # raised for a breakdown and never carries a safety signal.
+            classification=Classification(
+                category="breakdown", urgency="high", safetyRisk=False, confidence=1.0
+            ),
+            entitlement=Entitlement(
+                status="covered",
+                sla="not_applicable",
+                evidence=[{"type": "work_order", "id": order.get("id")}],
+            ),
+            nextActions=[
+                NextAction(
+                    type="work_order_created",
+                    reason=(
+                        f"Work order {order.get('id')} already exists for this delivery "
+                        "event; it was recovered rather than raised again"
+                    ),
+                )
+            ],
+            customerResponseDraft=(
+                "We've received your request.\n"
+                "Next step: An engineer has already been assigned to attend. We will "
+                "confirm the visit details shortly."
+            ),
+            missingInformation=[],
+            workOrder=order,
+            audit=Audit(
+                sourceReferences=[{"type": "route", "id": "work-orders"}],
+                modelTraceIds=[],
+                warnings=[
+                    "Recovered from the work-order record: this delivery event had "
+                    "already created a work order, so the case was not triaged again "
+                    "and no model call was made"
+                ],
+            ),
+        )
+
+    return None
 
 
 async def process_case(

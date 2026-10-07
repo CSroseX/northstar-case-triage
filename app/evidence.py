@@ -148,6 +148,14 @@ def _normalise_work_order(raw: dict[str, Any]) -> dict[str, Any]:
         "summary": raw.get("summary") or payload.get("summary"),
         "createdAt": raw.get("created_at", raw.get("createdAt")),
         "source": raw.get("source"),
+        # The idempotency key, so a write can be reconciled by the event that caused it.
+        # It appears top-level as external_event_id and again inside payload; without it
+        # here, reconciling by event reference silently never matched (SYS-CATALOG-001).
+        "externalEventId": (
+            raw.get("external_event_id")
+            or raw.get("externalEventId")
+            or payload.get("externalEventId")
+        ),
     }
 
 

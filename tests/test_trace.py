@@ -283,3 +283,96 @@ def test_recent_endpoint_is_empty_before_any_request(monkeypatch, tmp_path) -> N
     with TestClient(main.app) as client:
         payload = client.get("/cases/recent").json()
     assert payload == {"count": 0, "traces": []}
+
+
+# --- restart recovery through the endpoint ------------------------------
+
+
+def test_the_endpoint_recovers_a_redelivered_event_after_a_restart(monkeypatch, tmp_path) -> None:
+    """Simulates the restart: the in-memory store is cleared, the records are not.
+
+    This is the wiring test — recover_dispatched_case has to run before process_case,
+    and only for an event id the store does not recognise.
+    """
+    import app.main as main
+    from app.pipeline import handled_requests
+    from tests.saved_api import created_work_orders, reset_created_work_orders, saved_handler
+
+    model_calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.params.get("route") == "model":
+            model_calls.append("call")
+            return httpx.Response(
+                200,
+                json={
+                    "id": "cmpl-restart",
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    {
+                                        "assetMentions": ["AST-302"],
+                                        "safetySignal": "denied",
+                                        "safetyQuote": (
+                                            "There is no smoke, water or unusual smell."
+                                        ),
+                                        "intent": "breakdown",
+                                        "symptomSummary": "stopped cooling",
+                                        "referencedRequests": [],
+                                        "requiresOnsite": True,
+                                        "sameFaultAsExisting": "different",
+                                        "sameFaultReference": "",
+                                        "refersToPreviousWork": False,
+                                        "isSafetyAnswer": False,
+                                        "safetyAnswerUncertain": False,
+                                    }
+                                )
+                            }
+                        }
+                    ],
+                },
+            )
+        return saved_handler(request)
+
+    original = httpx.AsyncClient
+
+    def patched(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(handler)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(main.httpx, "AsyncClient", patched)
+    monkeypatch.setattr(main, "trace_log", TraceLog(str(tmp_path / "t.jsonl")))
+    main._RESULTS_BY_EVENT_ID.clear()
+    handled_requests._by_asset.clear()
+    reset_created_work_orders()
+
+    body = {
+        "requestId": "REQ-RESTART",
+        "receivedAt": "2026-09-20T09:31:00Z",
+        "channel": "portal",
+        "sender": {"name": "Deepa", "email": "ops@example.in"},
+        "subject": "Freezer plant 2 stopped",
+        "body": "AST-302 at SITE-021 has stopped cooling. There is no smoke, water or unusual smell.",
+        "attachments": [],
+    }
+    headers = {"X-Event-ID": "evt-restart-endpoint"}
+
+    with TestClient(main.app) as client:
+        first = client.post("/cases/process", json=body, headers=headers).json()
+        assert first["status"] == "dispatch_ready"
+        assert len(model_calls) == 1
+        created_id = first["workOrder"]["id"]
+
+        # The restart: the result store is lost. The work order is not.
+        main._RESULTS_BY_EVENT_ID.clear()
+        handled_requests._by_asset.clear()
+        model_calls.clear()
+
+        second = client.post("/cases/process", json=body, headers=headers).json()
+
+    assert second["status"] == "dispatch_ready"
+    assert second["workOrder"]["id"] == created_id
+    assert model_calls == [], "a recovered event must not spend a model call"
+    assert len(created_work_orders()) == 1, "no second work order"
+    assert any("recovered" in w.lower() for w in second["audit"]["warnings"])

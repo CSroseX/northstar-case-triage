@@ -93,7 +93,9 @@ def _created_work_order(request: httpx.Request) -> httpx.Response:
         "summary": body.get("summary"),
         "created_at": "2026-09-20T10:00:00.000Z",
         "source": "triage",
-        "externalEventId": event_id,
+        # snake_case, as the real route returns it. The camelCase spelling used here
+        # before hid the fact that the normaliser was not reading this field at all.
+        "external_event_id": event_id,
     }
     _CREATED[event_id] = work_order
     return httpx.Response(200, json={"workOrder": work_order, "duplicate": False})

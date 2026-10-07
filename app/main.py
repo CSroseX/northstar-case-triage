@@ -16,7 +16,7 @@ from .config import load_settings
 from .model_client import ModelClient
 from .models import CaseInput, CaseResult
 from .northstar_client import NorthstarClient
-from .pipeline import process_case
+from .pipeline import process_case, recover_dispatched_case
 from .trace import build_trace_log
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -77,7 +77,17 @@ async def process(
     async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as http:
         northstar = NorthstarClient(settings, client=http)
         model = ModelClient(settings, client=http)
-        result = await process_case(case, northstar, model, x_event_id, trace_log)
+
+        # The store above is in-process, so a restart loses it. Before triaging an event
+        # we do not recognise, check whether it already created a work order: if it did,
+        # the customer has been told an engineer is coming, and re-deciding could reach
+        # a different answer. The records settle it, not a second opinion.
+        result = None
+        if x_event_id:
+            result = await recover_dispatched_case(case, northstar, x_event_id)
+
+        if result is None:
+            result = await process_case(case, northstar, model, x_event_id, trace_log)
 
     if x_event_id:
         _RESULTS_BY_EVENT_ID[x_event_id] = result
