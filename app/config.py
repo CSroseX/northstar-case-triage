@@ -70,6 +70,11 @@ class Settings:
     model_alias: str
     port: int
     request_timeout_seconds: float
+    # Northstar reads get a tighter deadline than the model call. A business read that
+    # has not answered in a few seconds is not going to; the model legitimately takes
+    # longer, and sharing one timeout meant either starving it or letting a hanging
+    # read hold a hazard open (POL-SAFETY-001).
+    northstar_timeout_seconds: float = 5.0
 
     @property
     def northstar_configured(self) -> bool:
@@ -99,4 +104,5 @@ def load_settings(project_root: Path | None = None) -> Settings:
         model_alias=os.getenv("CELECO_MODEL_ALIAS", MODEL_ALIAS),
         port=int(os.getenv("PORT", "8080")),
         request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", "20")),
+        northstar_timeout_seconds=float(os.getenv("NORTHSTAR_TIMEOUT_SECONDS", "5")),
     )

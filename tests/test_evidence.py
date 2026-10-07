@@ -5,7 +5,10 @@ No test here touches the live API: a transport stub answers from the saved respo
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
+from unittest import mock
 from pathlib import Path
 from typing import Any
 
@@ -289,3 +292,123 @@ def test_a_top_level_summary_still_wins() -> None:
         "source": "operations",
     }
     assert _normalise_work_order(seeded)["summary"] == "Freezer plant 2 compressor cycling"
+
+
+# --- a hanging Northstar must not hold a hazard -------------------------
+# POL-SAFETY-001: an escalation must not wait on a record. These reads used to run one
+# after another with a 20s timeout and 3 attempts each, so a timing-out Northstar could
+# hold a hazard for minutes — past the runner's own 120s allowance for the whole case.
+
+
+def _hanging_transport(hang_routes: set[str], delay: float = 60.0) -> httpx.MockTransport:
+    """A transport where the named routes never answer within the test's lifetime."""
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        route = request.url.params.get("route", "")
+        if route in hang_routes:
+            await asyncio.sleep(delay)
+        payload = _saved(route)
+        q = request.url.params.get("q")
+        if q and route in {"customers", "agreements", "work-order-history"}:
+            needle = q.lower()
+            payload = {"results": [r for r in payload["results"] if needle in json.dumps(r).lower()]}
+        return httpx.Response(200, json=payload)
+
+    return httpx.MockTransport(handler)
+
+
+async def test_evidence_gathering_gives_up_within_its_budget() -> None:
+    """Everything still hanging when the budget expires is reported as a failed lookup."""
+    import app.evidence as evidence_module
+
+    budget = 1.0
+    transport = _hanging_transport(
+        {"technicians", "work-orders", "requests", "work-order-history", "agreements"}
+    )
+    http = httpx.AsyncClient(transport=transport)
+    started = time.perf_counter()
+    async with http:
+        client = NorthstarClient(_settings(), client=http, attempts=1, backoff_seconds=0.0)
+        with mock.patch.object(evidence_module, "EVIDENCE_BUDGET_SECONDS", budget):
+            ev = await gather_asset_evidence(client, "AST-101", "2026-09-20T08:42:00Z")
+    elapsed = time.perf_counter() - started
+
+    # It returned, promptly, with the identity it did resolve.
+    assert elapsed < budget + 2, f"took {elapsed:.1f}s against a {budget}s budget"
+    assert ev.outcome == "resolved"
+    assert ev.assetId == "AST-101"
+    assert ev.customer["id"] == "CUS-012"
+
+    # Everything that hung is a reported failure, not a silent default.
+    assert set(ev.failedLookups) == {
+        "agreements",
+        "technicians",
+        "work-orders",
+        "requests",
+        "work-order-history",
+    }
+    assert ev.agreement is None
+    assert ev.qualifiedTechnicians == []
+    assert any("evidence budget" in gap for gap in ev.gaps)
+
+
+async def test_the_reads_run_together_not_one_after_another() -> None:
+    """Five reads that each take a beat must cost one beat, not five.
+
+    This is the property that keeps a slow Northstar inside the runner's limit; run
+    sequentially the same delays would take five times as long.
+    """
+    delay = 0.3
+    transport = _hanging_transport(
+        {"agreements", "technicians", "work-orders", "requests", "work-order-history"},
+        delay=delay,
+    )
+    http = httpx.AsyncClient(transport=transport)
+    started = time.perf_counter()
+    async with http:
+        client = NorthstarClient(_settings(), client=http, attempts=1, backoff_seconds=0.0)
+        ev = await gather_asset_evidence(client, "AST-101", "2026-09-20T08:42:00Z")
+    elapsed = time.perf_counter() - started
+
+    assert ev.outcome == "resolved"
+    assert ev.failedLookups == [], "nothing should have failed at this delay"
+    # Sequential would be ~5x delay. Allow generous headroom for a slow machine.
+    assert elapsed < delay * 3, f"{elapsed:.2f}s suggests the reads ran sequentially"
+
+
+async def test_a_hazard_escalates_even_when_northstar_hangs() -> None:
+    """The case that matters: every read hangs, and the hazard still escalates fast."""
+    import app.evidence as evidence_module
+    from app.decide import decide
+    from app.facts import RequestFacts
+
+    budget = 1.0
+    # Every route hangs, including the identity read.
+    transport = _hanging_transport(
+        {"customers", "agreements", "technicians", "work-orders", "requests", "work-order-history"}
+    )
+    facts = RequestFacts(
+        assetMentions=["AST-101"],
+        safetySignal="affirmed",
+        safetyQuote="there is smoke coming from the generator",
+        intent="breakdown",
+        symptomSummary="smoke from the generator",
+    )
+    body = "AST-101 - there is smoke coming from the generator. We have moved everyone back."
+
+    http = httpx.AsyncClient(transport=transport)
+    started = time.perf_counter()
+    async with http:
+        client = NorthstarClient(_settings(), client=http, attempts=1, backoff_seconds=0.0)
+        with mock.patch.object(evidence_module, "EVIDENCE_BUDGET_SECONDS", budget):
+            ev = await gather_asset_evidence(client, "AST-101", "2026-09-20T08:42:00Z")
+        decision = decide(facts, ev, body)
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < budget + 2, f"a hazard waited {elapsed:.1f}s on the records"
+    # The lookups failed, and the hazard still wins: safety is checked before the
+    # lookup-failure branch, so no record outage can bury it.
+    assert ev.outcome == "lookup_failed"
+    assert decision.status == "human_escalation_required"
+    assert any(r.code == "safety_signal_affirmed" for r in decision.reasons)
+    assert decision.safetyQuote == "there is smoke coming from the generator"

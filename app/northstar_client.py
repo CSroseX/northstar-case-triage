@@ -67,7 +67,7 @@ class NorthstarClient:
 
     async def __aenter__(self) -> NorthstarClient:
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self._settings.request_timeout_seconds)
+            self._client = httpx.AsyncClient(timeout=self._settings.northstar_timeout_seconds)
             self._owns_client = True
         return self
 
@@ -95,7 +95,10 @@ class NorthstarClient:
         for attempt in range(1, self._attempts + 1):
             try:
                 response = await self._client.get(
-                    self._settings.northstar_api_base, params=params, headers=headers
+                    self._settings.northstar_api_base,
+                    params=params,
+                    headers=headers,
+                    timeout=self._settings.northstar_timeout_seconds,
                 )
                 if response.status_code in RETRYABLE_STATUS:
                     last_detail = f"HTTP {response.status_code}"
@@ -160,6 +163,7 @@ class NorthstarClient:
         try:
             response = await self._client.post(
                 self._settings.northstar_api_base,
+                timeout=self._settings.northstar_timeout_seconds * 2,
                 params={"route": "work-orders"},
                 headers={
                     "authorization": f"Bearer {self._settings.northstar_token.reveal()}",
